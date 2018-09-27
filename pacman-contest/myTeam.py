@@ -23,6 +23,7 @@
 import random
 
 import numpy as np
+import pandas as pd
 
 import util
 from captureAgents import CaptureAgent
@@ -31,7 +32,7 @@ from util import nearestPoint
 
 GENERIC = False
 MINIMUM_PROBABILITY = 0.001
-beliefs = []
+beliefs = [None, None, None, None]
 beliefsInitialized = []
 Walls = set()
 NoWalls = set()
@@ -81,7 +82,6 @@ class ReflexCaptureAgent(CaptureAgent):
                          gameState.hasWall(index[0][0] + 1, index[0][1] + 1)])
         # Valid Moves contains all available moves from each available legal state in the map
         validMoves = {}
-        walls = set(gameState.getWalls().asList())
         for x, y in noWallsTemp:
             availableMoves = []
             if (x + 1, y) not in WallsTemp:
@@ -97,6 +97,10 @@ class ReflexCaptureAgent(CaptureAgent):
         Walls = WallsTemp
         global NoWalls
         NoWalls = noWallsTemp
+        for x in self.getOpponents(gameState):
+            bell = util.Counter().fromkeys(NoWalls, 1)
+            beliefs[x] = bell
+        # print beliefs
 
     def chooseAction(self, gameState):
         """
@@ -172,15 +176,13 @@ class OffensiveReflexAgent(ReflexCaptureAgent):
     """
 
     def getFeatures(self, gameState, action):
-        self.legalPositionsInitialized = False
-        # Updating beliefs
-        self.observeAllOpponents(gameState)
         features = util.Counter()
+
+        # Our position's successor based on current action:
         successor = self.getSuccessor(gameState, action)
         foodList = self.getFood(successor).asList()
         myPos = successor.getAgentState(self.index).getPosition()
-        enemies = [successor.getAgentState(i) for i in self.getOpponents(successor)]
-        nonScaredGhosts = [a for a in enemies if not a.isPacman and a.getPosition() is not None]
+        # print nonScaredGhosts
 
         features['successorScore'] = -len(foodList)  # self.getScore(successor)
 
@@ -209,85 +211,45 @@ class OffensiveReflexAgent(ReflexCaptureAgent):
             [self.getMazeDistance(successor.getAgentState(self.getTeam(gameState)[1]).getPosition(), points) for points
              in midwayPoints])
 
-        # Enemy location Approximation
-        dists = []
-        for index in self.getOpponents(successor):
-            enemy = successor.getAgentState(index)
-            if enemy in nonScaredGhosts:
-                print index, max(beliefs[index])
-                dists.append(self.getMazeDistance(myPos, self.getMostLikelyGhostPosition(index)))
-
-        # Use the smallest distance
-        if len(dists) > 0:
-            smallestDist = min(dists)
-
-            features['ghostDistance'] = smallestDist
-        return features
-
-    def getMostLikelyGhostPosition(self, ghostAgentIndex):
-        return max(beliefs[ghostAgentIndex])
-
-    def getLegalPositions(self, gameState):
-        if not self.legalPositionsInitialized:
-            self.legalPositions = []
-            walls = gameState.getWalls()
-            for x in range(walls.width):
-                for y in range(walls.height):
-                    if not walls[x][y]:
-                        self.legalPositions.append((x, y))
-            self.legalPositionsInitialized = True
-        return self.legalPositions
-
-    def initializeBeliefs(self, gameState):
-        beliefs.extend([None for x in range(len(self.getOpponents(gameState)) + len(self.getTeam(gameState)))])
-        for opponent in self.getOpponents(gameState):
-            belief = util.Counter()
-            for p in (self.getLegalPositions(gameState) if not GENERIC else NoWalls):
-                belief[p] = 1.0
-            belief.normalize()
-            beliefs[opponent] = belief
-        beliefsInitialized.append('done')
-
-    def observeAllOpponents(self, gameState):
-        if len(beliefsInitialized):
-            for opponent in self.getOpponents(gameState):
-                self.observeOneOpponent(gameState, opponent)
-        else:
-            self.initializeBeliefs(gameState)
-
-    def observeOneOpponent(self, gameState, opponentIndex):
-        Possible = util.Counter()
-
-        # Our and Enemy Positions
-        pacmanPosition = gameState.getAgentPosition(self.index)
-        enemyApproximateLocation = gameState.getAgentPosition(opponentIndex)
-
-        # Noisy Distance to the Enemy
-        noisyDistance = gameState.getAgentDistances()[opponentIndex]
-
-        # Manhattan Distance if available - Probability is max = 1
-        if enemyApproximateLocation is not None:
-            Possible[enemyApproximateLocation] = 1
-            beliefs[opponentIndex] = Possible
-            return
-
-        for p in (self.getLegalPositions(gameState) if not GENERIC else NoWalls):
-            # For each legal ghost position, calculate distance to that ghost
-            trueDistance = util.manhattanDistance(p, pacmanPosition)
-            probability = gameState.getDistanceProb(trueDistance, noisyDistance)
-
-            # Find the probability of getting this noisyDistance if the ghost is at this position
-            if probability > 0:
-                oldProb = beliefs[opponentIndex][p]
-                # Updating Total probability
-                Possible[p] = (oldProb + MINIMUM_PROBABILITY) * probability
+        for enemy in self.getOpponents(gameState):
+            print max(beliefs[enemy], key=lambda x: beliefs[enemy][x])
+            if gameState.getAgentPosition(enemy) is None:
+                currentProbability = self.getProbabilities(gameState, enemy)
+                oldProbability = beliefs[enemy]
+                updatedProbability = util.Counter()
+                for coordinates in oldProbability.keys():
+                    update = (oldProbability[coordinates] + 0.001) * currentProbability[coordinates]
+                    # print update
+                    updatedProbability[coordinates] = update
+                updatedProbability.normalize()
+                beliefs[enemy] = updatedProbability
             else:
-                Possible[p] = 0
-        Possible.normalize()
-        beliefs[opponentIndex] = Possible
+                print gameState.getAgentPosition(enemy)
+        # print '*_*_*_*_*_*_*_*_*_*___END_OF_ITERATION__*_*_*_*_*_*_*_*_*_*_*'
+        return features
 
     def getWeights(self, gameState, action):
         return {'successorScore': 100, 'distanceToFood': -1}
+
+    def getProbabilities(self, gameState, opponentIndex):
+        Possible = util.Counter()
+
+        # Our Positions
+        pacmanPosition = gameState.getAgentPosition(self.index)
+
+        # Noisy Distance to the Enemy
+        noisyDistance = gameState.getAgentDistances()[opponentIndex]
+        for position in NoWalls:
+            trueDistance = util.manhattanDistance(position, pacmanPosition)
+            if gameState.getAgentPosition(opponentIndex) is not None:
+                probability = 1
+                return gameState.getAgentPosition(opponentIndex)
+            else:
+                probability = gameState.getDistanceProb(trueDistance, noisyDistance)
+            Possible[position] = probability
+        # Now normalize the probability:
+        Possible.normalize()
+        return Possible
 
 
 class DefensiveReflexAgent(ReflexCaptureAgent):
