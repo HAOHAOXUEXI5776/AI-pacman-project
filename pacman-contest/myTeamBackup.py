@@ -230,43 +230,102 @@ class OffensiveReflexAgent(ReflexCaptureAgent):
             [self.getMazeDistance(successor.getAgentState(self.getTeam(gameState)[1]).getPosition(), points) for points
              in midwayPoints])
 
-        ####################
-        start = time.time()  #
-        ####################
-
+        # Getting approximate location of the enemy
+        start = time.time()
         for enemy in self.getOpponents(gameState):
-            Possible = util.Counter()
-            if enemy == 1:
-                # Get maybe positions form that state
-                maybePositions = validNextPositions[OpponentLocation1]
+            if DEBUG:
+                print 'enemy value:', enemy
+            if not successor.getAgentState(enemy).isPacman:
+                loc = currentProbability = None
+                # Getting old probabilities and calculating current probabilities
+                if enemy == 1:
+                    currentProbability = self.getProbabilities(gameState, 1)
+                    global beliefsOpponent1
+                    oldProbability = beliefsOpponent1
+                    if DEBUG:
+                        print '1 Before:', oldProbability
+                if enemy == 3:
+                    currentProbability = self.getProbabilities(gameState, 3)
+                    global beliefsOpponent2
+                    oldProbability = beliefsOpponent2
+                    if DEBUG:
+                        print '3 Before:', oldProbability
+                # Current Probability
+                if DEBUG:
+                    print 'Current:', currentProbability
+                updatedProbability = util.Counter()
+                for coordinates in oldProbability.keys():
+                    if BELIEF_LOGIC:
+                        update = (oldProbability[coordinates] + 0.0005) * currentProbability[coordinates]
+                    else:
+                        update = currentProbability[coordinates]
+                    updatedProbability[coordinates] = update
+                updatedProbability.normalize()
+                # Updating beliefs and updating new probabilities in the respective structures
+                if enemy == 1:
+                    global beliefsOpponent1
+                    beliefsOpponent1 = updatedProbability
 
-                # Get next available positions for all the positions listed above
-                nextLevelMaybePositions = [validNextPositions[str(locs[0]) + ',' + str(locs[1])] for locs in
-                                           maybePositions]
-                # Creating a flattened list of values obtained from above
-                flattened = set(itertools.chain.from_iterable(nextLevelMaybePositions))
-                # print flattened
-                totalCoordinatesToBeCompared = list(flattened.union(set(maybePositions)))
+                    # Get maybe positions form that state
+                    maybePositions = validNextPositions[OpponentLocation1]
+                    # Get next available positions for all the positions listed above
+                    nextLevelMaybePositions = [validNextPositions[str(locs[0]) + ',' + str(locs[1])] for locs in
+                                               maybePositions]
+                    # Creating a flattened list of values obtained from above
+                    flattened = set(itertools.chain.from_iterable(nextLevelMaybePositions))
+                    totalCoordinatesToBeCompared = flattened.union(set(maybePositions))
 
-                noisyDistance = gameState.getAgentDistances()[enemy]
-                # print 'Noisy Distance to Enemy:', noisyDistance
-                for maybePoint in totalCoordinatesToBeCompared:
-                    if gameState.getAgentPosition(enemy) is None:
-                        trueDistance = util.manhattanDistance(maybePoint, myPos)
-                        probability = gameState.getDistanceProb(trueDistance, noisyDistance)
-                        Possible[maybePoint] = probability
-                Possible.normalize()
-                print Possible
-                location = None
-                maxLocations = [key for key in Possible.keys() if Possible[key] == max(Possible.values())]
-                print 'Before', OpponentLocation1
-                while OpponentLocation1 is not max(Possible, key=Possible.get):
-                    location = random.choice(maxLocations)
-                    print location
-                global OpponentLocation1
-                OpponentLocation1 = str(location[0]) + ',' + str(location[1])
-                print OpponentLocation1
-        # print time.time() - start
+                    # Getting probabilities based from present state calculations
+                    locations = self.getSetOfMaximumValues(beliefsOpponent1)
+
+                    if DEBUG:
+                        print 'Next Positions can be', totalCoordinatesToBeCompared
+                        print 'Max Probability positions:', locations
+                    loc = list(set(locations).intersection(totalCoordinatesToBeCompared))
+                    if len(loc) == 0:
+                        continue
+                    loc = loc[0]
+                    print loc
+                    global OpponentLocation1
+                    OpponentLocation1 = str(loc[0]) + ',' + str(loc[1])
+                    if DEBUG:
+                        print '1 After:', beliefsOpponent1
+                        print self.getSetOfMaximumValues(beliefsOpponent1)
+                if enemy == 3:
+                    global beliefsOpponent2
+                    beliefsOpponent2 = updatedProbability
+
+                    # Get maybe positions form that state
+                    maybePositions = validNextPositions[OpponentLocation2]
+                    # Get next available positions for all the positions listed above
+                    nextLevelMaybePositions = [validNextPositions[str(locs[0]) + ',' + str(locs[1])] for locs in
+                                               maybePositions]
+                    # Creating a flattened list of values obtained from above
+                    flattened = set(itertools.chain.from_iterable(nextLevelMaybePositions))
+                    totalCoordinatesToBeCompared = flattened.union(set(maybePositions))
+
+                    # Getting probabilities based from present state calculations
+                    locations = self.getSetOfMaximumValues(beliefsOpponent2)
+
+                    if DEBUG:
+                        print 'Next Positions can be', totalCoordinatesToBeCompared
+                        print 'Max Probability positions:', locations
+                    loc = list(set(locations).intersection(totalCoordinatesToBeCompared))
+                    if len(loc) == 0:
+                        continue
+                    loc = loc[0]
+                    print loc
+                    global OpponentLocation2
+                    OpponentLocation2 = str(loc[0]) + ',' + str(loc[1])
+                    if DEBUG:
+                        print '2 After:', beliefsOpponent2
+                        print self.getSetOfMaximumValues(beliefsOpponent2)
+                if gameState.getAgentPosition(enemy) is not None:
+                    loc = gameState.getAgentPosition(enemy)
+        if DEBUG:
+            print '__________________________________END_OF_ITERATION__________________________________'
+            print time.time() - start
+
         return features
 
     def getWeights(self, gameState, action):
