@@ -1,3 +1,3 @@
-976508 Nizamuddin  nizamuddin@student.unimelb.edu.au
-955387 Archith Padmanabhan Menon  archithpadma@student.unimelb.edu.au
-949125 Pinal Pravinbhai Gadhiya  pgadhiya@student.unimelb.edu.au
+976504,Vitaly Yakutenko,vitaly.yakutenko@student.unimelb.edu.au
+975172,Himagna Erla,herla@student.unimelb.edu.au
+949136,Kartik Kishore,kkishore@student.unimelb.edu.au
