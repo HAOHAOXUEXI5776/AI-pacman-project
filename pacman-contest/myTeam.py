@@ -431,12 +431,14 @@ class OffensiveReflexAgent(ReflexCaptureAgent):
         #######################
 
         # Cooordinates for the closest enemy ghost that we can observe
+        if nearestEnemyLocation is None:
+            nearestEnemyLocation = gameState.getInitialAgentPosition(self.getOpponents(gameState)[0])
         dists = []
         for index in self.getOpponents(successor):
             enemy = successor.getAgentState(index)
             if enemy in Ghosts:
                 if USE_BELIEF_DISTANCE:
-                    print index, self.getMostLikelyGhostPosition(index)
+                    # print index, self.getMostLikelyGhostPosition(index)
                     global nearestEnemyLocation
                     nearestEnemyLocation = self.getMostLikelyGhostPosition(index)
                     dists.append(self.getMazeDistance(myPos, self.getMostLikelyGhostPosition(index)))
@@ -448,8 +450,7 @@ class OffensiveReflexAgent(ReflexCaptureAgent):
             successor.getAgentState(self.getTeam(gameState)[1]).getPosition(), nearestEnemyLocation)
         features['enemyDistanceToMiddle'] = min(
             [self.getMazeDistance(nearestEnemyLocation, points) for points in midwayPoints])
-        print time.time() - start
-        return features
+        print features
 
     def getWeights(self, gameState, action):
         return {'successorScore': 100, 'distanceToFood': -1}
