@@ -117,16 +117,6 @@ class ReflexCaptureAgent(CaptureAgent):
             startState = gameState.getAgentState(1).getPosition()
         else:
             startState = gameState.getAgentState(0).getPosition()
-        bell = util.Counter().fromkeys(NoWalls, 1)
-        bell[startState] = 1
-        global beliefsOpponent1
-        beliefsOpponent1 = bell
-        global beliefsOpponent2
-        beliefsOpponent2 = bell
-        global OpponentLocation1
-        OpponentLocation1 = str(startState[0]) + ',' + str(startState[1])
-        global OpponentLocation2
-        OpponentLocation2 = str(startState[0]) + ',' + str(startState[1])
 
     def chooseAction(self, gameState):
         """
