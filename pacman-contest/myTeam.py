@@ -348,6 +348,14 @@ class OffensiveReflexAgent(ReflexCaptureAgent):
     """
 
     def getFeatures(self, gameState1, action):
+        """
+    A reflex agent that seeks food. This is an agent
+    we give you to get an idea of what an offensive agent might look like,
+    but it is by no means the best or only way to build an offensive agent.
+    """
+
+    def getFeatures(self, gameState1, action):
+        start = time.time()
         # Making copy of the gamestate
         gameState = gameState1.deepCopy()
 
@@ -414,11 +422,9 @@ class OffensiveReflexAgent(ReflexCaptureAgent):
         if len([enemy.isPacman for enemy in enemies]) > 0:
             observableDistance = [self.getMazeDistance(myPos, enemy.getPosition()) for enemy in enemyPacmen]
             # Use the smallest distance
-            if len(dists) > 0:
-                smallestDist = min(dists)
-                return smallestDist
-
-        start = time.time()
+            if len(observableDistance) > 0:
+                smallestDistance = min(observableDistance)
+        features['huntEnemy'] = smallestDistance
 
         #######################
         # ENEMY APPROXIMATION #
@@ -442,6 +448,7 @@ class OffensiveReflexAgent(ReflexCaptureAgent):
             successor.getAgentState(self.getTeam(gameState)[1]).getPosition(), nearestEnemyLocation)
         features['enemyDistanceToMiddle'] = min(
             [self.getMazeDistance(nearestEnemyLocation, points) for points in midwayPoints])
+        print time.time() - start
         return features
 
     def getWeights(self, gameState, action):
