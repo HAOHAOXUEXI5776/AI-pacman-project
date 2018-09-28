@@ -41,6 +41,9 @@ Walls = set()
 NoWalls = set()
 nearestEnemyLocation = None
 POWER_PELLET_VICINITY = 3
+DEFENSE_TIMER = 100
+MINIMUM_PELLETS_TO_UNLOAD = 8
+THREAT_DISTANCE = 5
 
 
 #################
@@ -83,7 +86,6 @@ class ReflexCaptureAgent(CaptureAgent):
         self.epsilon = 0.05
         self.discountFactor = 0.75
         self.alphaLR = 0.0000000002
-
 
     def registerInitialState(self, gameState):
         self.start = gameState.getAgentPosition(self.index)
@@ -130,7 +132,7 @@ class ReflexCaptureAgent(CaptureAgent):
         # You can profile your evaluation time by uncommenting these lines
         start = time.time()
         values = [self.AproaxQvalue(gameState, a) for a in actions]
-        print 'eval time for agent %d: %.4f' % (self.index, time.time() - start)
+        # print 'eval time for agent %d: %.4f' % (self.index, time.time() - start)
 
         maxValue = max(values)
         bestActions = [a for a, v in zip(actions, values) if v == maxValue]
@@ -188,8 +190,6 @@ class ReflexCaptureAgent(CaptureAgent):
             return maxValue
         else:
             return 0
-
-
 
     def getFeatures(self, gameState, action):
         """
@@ -299,19 +299,19 @@ class ReflexCaptureAgent(CaptureAgent):
 
         return cummilativeReward
 
-    def observationFunction(self, gameState):
-
-       '''
-        Note this observationFuntion ovverides the function in CaptureAgents
-
-       '''
-
-        #
-        if len(self.observationHistory) > 0 and self.isTraining:
-            self.update(self.observationHistory.pop(), self.lastAction, gameState, self.getReward(gameState))
-            # print self.getReward(gameState)
-        return gameState.makeObservation(self.index)
-
+    # def observationFunction(self, gameState):
+    #
+    #    '''
+    #     Note this observationFuntion ovverides the function in CaptureAgents
+    #
+    #    '''
+    #
+    #     #
+    #     if len(self.observationHistory) > 0 and self.isTraining:
+    #         self.update(self.observationHistory.pop(), self.lastAction, gameState, self.getReward(gameState))
+    #         # print self.getReward(gameState)
+    #     return gameState.makeObservation(self.index)
+    #
 
     def update(self, state, action, nextState, reward):
 
@@ -323,21 +323,62 @@ class ReflexCaptureAgent(CaptureAgent):
         '''
 
         TD = (reward + self.discountFactor * self.ValueFromQvalue(nextState))
-        Qvalue =  self.AproaxQvalue(state, action)
+        Qvalue = self.AproaxQvalue(state, action)
 
         updatedWeights = self.weights.copy()
 
         FeatureValues = self.getFeatures(state, action)
 
         for feature in FeatureValues:
-            newWeight = updatedWeights[feature] + self.alphaLR * (TD-Qvalue) * FeatureValues[feature]
+            newWeight = updatedWeights[feature] + self.alphaLR * (TD - Qvalue) * FeatureValues[feature]
             updatedWeights[feature] = newWeight
         self.weights = updatedWeights
 
-        print 'UPDATED WEIGHTS ARE'
-        print self.weights
+        #print 'UPDATED WEIGHTS ARE'
+        #print self.weights
 
+    def getMostLikelyGhostPosition(self, ghostAgentIndex):
+        return max(beliefs[ghostAgentIndex])
 
+    def initializeBeliefs(self, gameState):
+        beliefs.extend([None for x in range(len(self.getOpponents(gameState)) + len(self.getTeam(gameState)))])
+        for opponent in self.getOpponents(gameState):
+            self.initializeBelief(opponent, gameState)
+        beliefsInitialized.append('done')
+
+    def initializeBelief(self, enemyIndex, gameState):
+        belief = util.Counter()
+        for gridSpaces in NoWalls:
+            belief[gridSpaces] = 1.0
+        belief.normalize()
+        beliefs[enemyIndex] = belief
+
+    def observeAllOpponents(self, gameState):
+        if len(beliefsInitialized):
+            for opponent in self.getOpponents(gameState):
+                self.observeOneOpponent(gameState, opponent)
+        else:
+            self.initializeBeliefs(gameState)
+
+    def observeOneOpponent(self, gameState, enemyIndex):
+        ourPosition = gameState.getAgentPosition(self.index)
+        probabilities = util.Counter()
+        maybeIndex = gameState.getAgentPosition(enemyIndex)
+        noisyDistance = gameState.getAgentDistances()[enemyIndex]
+        if maybeIndex is not None:
+            probabilities[maybeIndex] = 1
+            beliefs[enemyIndex] = probabilities
+            return
+        for gridSpaces in NoWalls:
+            trueDistance = util.manhattanDistance(gridSpaces, ourPosition)
+            modelProb = gameState.getDistanceProb(trueDistance, noisyDistance)
+            if modelProb > 0:
+                oldProb = beliefs[enemyIndex][gridSpaces]
+                probabilities[gridSpaces] = (oldProb + 0.001) * modelProb
+            else:
+                probabilities[gridSpaces] = 0
+        probabilities.normalize()
+        beliefs[enemyIndex] = probabilities
 
 
 class OffensiveReflexAgent(ReflexCaptureAgent):
@@ -428,6 +469,7 @@ class OffensiveReflexAgent(ReflexCaptureAgent):
             if len(observableDistance) > 0:
                 smallestDistanceToEnemy = min(observableDistance)
         features['huntEnemy'] = smallestDistanceToEnemy
+
         if len(self.observationHistory) != 0:
             if myState.numReturned != (self.observationHistory.pop()).getAgentState(self.index).numReturned:
                 global DEFENSE_TIMER
@@ -455,13 +497,16 @@ class OffensiveReflexAgent(ReflexCaptureAgent):
                     # print index, self.getMostLikelyGhostPosition(index)
                     global nearestEnemyLocation
                     nearestEnemyLocation = self.getMostLikelyGhostPosition(index)
-                    dists.append(self.getMazeDistance(myPos, self.getMostLikelyGhostPosition(index)))
+                    dists.append(util.manhattanDistance(myPos, self.getMostLikelyGhostPosition(index))/10)
                 else:
                     dists.append(self.getMazeDistance(myPos, enemy.getPosition()))
         # Use the smallest distance
         if len(dists) > 0:
             smallestDist = min(dists)
-            features['ghostDistance'] = smallestDist
+            if successor.getAgentState(self.index).isPacman:
+                features['ghostDistance'] = smallestDist
+            else:
+                features['ghostDistance'] = 0
 
         features['agent1ToEnemyGhost'] = self.getMazeDistance(
             successor.getAgentState(self.getTeam(gameState)[0]).getPosition(), nearestEnemyLocation)
@@ -484,7 +529,32 @@ class OffensiveReflexAgent(ReflexCaptureAgent):
         return features
 
     def getWeights(self, gameState, action):
-        return {'successorScore': 100, 'distanceToFood': -1}
+        return {'successorScore': 100, 'distanceToFood': -1, 'powerPelletScore': 100, 'ghostDistance': 5,
+                'huntEnemy': -100, 'stop': -1000, 'backToSafeZone': -1}
+
+    def getCashInValue(self, myPos, gameState, myState):
+        # if we have enough pellets, attempt to cash in
+        if myState.numCarrying >= MINIMUM_PELLETS_TO_UNLOAD:
+            return self.getMazeDistance(self.start, myPos)
+        else:
+            return 0
+
+    def getBackToStartDistance(self, myPos, smallestGhostPosition):
+        if smallestGhostPosition > THREAT_DISTANCE or smallestGhostPosition == 0:
+            return 0
+        else:
+            return self.getMazeDistance(self.start, myPos) * 1000
+
+    def shouldRunHome(self, gameState):
+        winningBy = self.getWinningBy(gameState)
+        numCarrying = gameState.getAgentState(self.index).numCarrying
+        return gameState.data.timeleft < 80 and winningBy <= 0 < numCarrying and numCarrying >= abs(winningBy)
+
+    def getWinningBy(self, gameState):
+        if self.red:
+            return gameState.getScore()
+        else:
+            return -1 * gameState.getScore()
 
     ######################
     # BELIEF LOGIC BEGIN #
@@ -548,7 +618,7 @@ class DefensiveReflexAgent(ReflexCaptureAgent):
     such an agent.
     """
 
-    def getFeatures(self, gameState, action):
+    def getFeatures(self, gameState1, action):
         gameState = gameState1.deepCopy()
 
         # Initializing Beliefs
@@ -578,6 +648,13 @@ class DefensiveReflexAgent(ReflexCaptureAgent):
         if len(invaders) > 0:
             dists = [self.getMazeDistance(myPos, a.getPosition()) for a in invaders]
             features['invaderDistance'] = min(dists)
+        invaderDistance = []
+        if features['invaderDistance'] == 0:
+            for opp in self.getOpponents(successor):
+                if successor.getAgentState(opp).isPacman:
+                    invaderDistance.append(util.manhattanDistance(myPos, self.getMostLikelyGhostPosition(opp)) / 1000.0)
+        if len(invaderDistance) > 0:
+            features['invaderDistance'] = min(invaderDistance)
 
         if action == Directions.STOP: features['stop'] = 1
         rev = Directions.REVERSE[gameState.getAgentState(self.index).configuration.direction]
@@ -591,13 +668,20 @@ class DefensiveReflexAgent(ReflexCaptureAgent):
                 smallestDistanceToEnemy = min(observableDistance)
         features['huntEnemy'] = smallestDistanceToEnemy
 
-        if myState.numReturned != self.observationHistory.pop().numReturned:
-            self.defenseTimer = DEFENSE_TIMER
+        if len(self.observationHistory) != 0:
+            if myState.numReturned != (self.observationHistory.pop()).getAgentState(self.index).numReturned:
+                global DEFENSE_TIMER
+                DEFENSE_TIMER += 1
+
         # If on defense, heavily value chasing after enemies
-        if self.defenseTimer > 0:
-            self.defenseTimer -= 1
+        if DEFENSE_TIMER > 0:
+            global DEFENSE_TIMER
+            DEFENSE_TIMER -= 1
             features['huntEnemy'] *= 100
+        if len(self.getFoodYouAreDefending(successor).asList()) <= 2:
+            features['huntEnemy'] *= 100
+        # print features['invaderDistance']
         return features
 
     def getWeights(self, gameState, action):
-        return {'numInvaders': -1000, 'onDefense': 100, 'invaderDistance': -10, 'stop': -100, 'reverse': -2}
+        return {'numInvaders': -1000, 'onDefense': 100, 'invaderDistance': -100, 'stop': -100, 'reverse': -2}
