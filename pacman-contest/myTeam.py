@@ -365,6 +365,7 @@ class OffensiveReflexAgent(ReflexCaptureAgent):
 
         # Our position's successor based on current action:
         successor = self.getSuccessor(gameState, action)
+        myState = successor.getAgentState(self.index)
         myPos = successor.getAgentState(self.index).getPosition()
         foodList = self.getFood(successor).asList()
         powerPellets = self.getCapsules(successor)
@@ -390,6 +391,8 @@ class OffensiveReflexAgent(ReflexCaptureAgent):
         ###########################
         # SELF GENERATED FEATURES #
         ###########################
+        if action == Directions.STOP:
+            features['stop'] = 10
 
         features['foodLeftToEat'] = len(self.getFood(successor).asList())
 
@@ -404,7 +407,6 @@ class OffensiveReflexAgent(ReflexCaptureAgent):
         else:
             midway = 16
         midwayPoints = [tuple((midway, a)) for a in range(1, midway) if not gameState.hasWall(midway, a)]
-
         features['minMazeToMiddleFromOurAgent1'] = min(
             [self.getMazeDistance(successor.getAgentState(self.getTeam(gameState)[0]).getPosition(), points) for points
              in midwayPoints])
@@ -419,12 +421,21 @@ class OffensiveReflexAgent(ReflexCaptureAgent):
         features['powerPelletScore'] = max(POWER_PELLET_VICINITY - mazeToPowerPellet, 0)
 
         # Hunt Enemy
+        smallestDistanceToEnemy = 0
         if len([enemy.isPacman for enemy in enemies]) > 0:
             observableDistance = [self.getMazeDistance(myPos, enemy.getPosition()) for enemy in enemyPacmen]
             # Use the smallest distance
             if len(observableDistance) > 0:
-                smallestDistance = min(observableDistance)
-        features['huntEnemy'] = smallestDistance
+                smallestDistanceToEnemy = min(observableDistance)
+        features['huntEnemy'] = smallestDistanceToEnemy
+
+        if myState.numReturned != self.observationHistory.pop().numReturned:
+            self.defenseTimer = DEFENSE_TIMER
+
+        # If on defense, heavily value chasing after enemies - Included in the Defense Agent
+        # if self.defenseTimer > 0:
+        #     self.defenseTimer -= 1
+        #     features['huntEnemy'] *= 100
 
         #######################
         # ENEMY APPROXIMATION #
@@ -451,6 +462,7 @@ class OffensiveReflexAgent(ReflexCaptureAgent):
         features['enemyDistanceToMiddle'] = min(
             [self.getMazeDistance(nearestEnemyLocation, points) for points in midwayPoints])
         print features
+        return features
 
     def getWeights(self, gameState, action):
         return {'successorScore': 100, 'distanceToFood': -1}
