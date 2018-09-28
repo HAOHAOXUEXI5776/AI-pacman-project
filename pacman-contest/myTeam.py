@@ -428,9 +428,12 @@ class OffensiveReflexAgent(ReflexCaptureAgent):
             if len(observableDistance) > 0:
                 smallestDistanceToEnemy = min(observableDistance)
         features['huntEnemy'] = smallestDistanceToEnemy
-
-        if myState.numReturned != self.observationHistory.pop().numReturned:
-            self.defenseTimer = DEFENSE_TIMER
+        if len(self.observationHistory) != 0:
+            if myState.numReturned != (self.observationHistory.pop()).getAgentState(self.index).numReturned:
+                global DEFENSE_TIMER
+                DEFENSE_TIMER += 1
+        if len(self.getFoodYouAreDefending(successor).asList()) <= 2:
+            features['huntEnemy'] *= 100
 
         # If on defense, heavily value chasing after enemies - Included in the Defense Agent
         # if self.defenseTimer > 0:
@@ -455,13 +458,29 @@ class OffensiveReflexAgent(ReflexCaptureAgent):
                     dists.append(self.getMazeDistance(myPos, self.getMostLikelyGhostPosition(index)))
                 else:
                     dists.append(self.getMazeDistance(myPos, enemy.getPosition()))
+        # Use the smallest distance
+        if len(dists) > 0:
+            smallestDist = min(dists)
+            features['ghostDistance'] = smallestDist
+
         features['agent1ToEnemyGhost'] = self.getMazeDistance(
             successor.getAgentState(self.getTeam(gameState)[0]).getPosition(), nearestEnemyLocation)
         features['agent2ToEnemyGhost'] = self.getMazeDistance(
             successor.getAgentState(self.getTeam(gameState)[1]).getPosition(), nearestEnemyLocation)
         features['enemyDistanceToMiddle'] = min(
             [self.getMazeDistance(nearestEnemyLocation, points) for points in midwayPoints])
-        print features
+
+        ###################
+        # LEEROY FEATURES #
+        ###################
+        # Adding value for cashing in pellets
+        features['backToSafeZone'] = self.getCashInValue(myPos, gameState, myState)
+
+        # Adding value for going back home
+        features['backToSafeZone'] += self.getBackToStartDistance(myPos, features['ghostDistance'])
+
+        if self.shouldRunHome(gameState):
+            features['backToSafeZone'] = self.getMazeDistance(self.start, myPos) * 10000
         return features
 
     def getWeights(self, gameState, action):
