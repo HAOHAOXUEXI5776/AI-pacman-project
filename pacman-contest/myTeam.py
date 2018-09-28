@@ -76,9 +76,20 @@ class ReflexCaptureAgent(CaptureAgent):
     A base class for reflex agents that chooses score-maximizing actions
     """
 
+    def __init__(self, index):
+        CaptureAgent.__init__(self, index)
+        self.weights = util.Counter()
+        self.isTraining = True
+        self.episodesSoFar = 0
+        self.epsilon = 0.05
+        self.discountFactor = 0.75
+        self.alphaLR = 0.0000000002
+
+
     def registerInitialState(self, gameState):
         self.start = gameState.getAgentPosition(self.index)
         CaptureAgent.registerInitialState(self, gameState)
+        self.PrevAction = None
         # Offline data computation, can be utilised further.
         arr = np.zeros((32, 16))
         noWallsTemp = set([(index[0][0] + 1, index[0][1] + 1) for index in np.ndenumerate(arr) if
@@ -122,19 +133,24 @@ class ReflexCaptureAgent(CaptureAgent):
         """
         Picks among the actions with the highest Q(s,a).
         """
+
+        # Append the History of all States played
+        self.observationHistory.append(gameState)
         actions = gameState.getLegalActions(self.index)
 
         # You can profile your evaluation time by uncommenting these lines
-        # start = time.time()
-        values = [self.evaluate(gameState, a) for a in actions]
-        # print 'eval time for agent %d: %.4f' % (self.index, time.time() - start)
+        start = time.time()
+        values = [self.AproaxQvalue(gameState, a) for a in actions]
+        print 'eval time for agent %d: %.4f' % (self.index, time.time() - start)
 
         maxValue = max(values)
         bestActions = [a for a, v in zip(actions, values) if v == maxValue]
 
         foodLeft = len(self.getFood(gameState).asList())
 
-        if foodLeft <= 2:
+        bestAction = None
+        # Go back to start if there are only 5 food left
+        if foodLeft <= 5:
             bestDist = 9999
             for action in actions:
                 successor = self.getSuccessor(gameState, action)
@@ -143,9 +159,11 @@ class ReflexCaptureAgent(CaptureAgent):
                 if dist < bestDist:
                     bestAction = action
                     bestDist = dist
-            return bestAction
 
-        return random.choice(bestActions)
+        else:
+            bestAction = random.choice(bestActions)
+        self.PrevAction = bestAction
+        return bestAction
 
     def getSuccessor(self, gameState, action):
         """
@@ -159,13 +177,30 @@ class ReflexCaptureAgent(CaptureAgent):
         else:
             return successor
 
-    def evaluate(self, gameState, action):
+    def AproaxQvalue(self, gameState, action):
         """
         Computes a linear combination of features and feature weights
         """
         features = self.getFeatures(gameState, action)
         weights = self.getWeights(gameState, action)
         return features * weights
+
+    def ValueFromQvalue(self, gameState):
+
+        '''
+         Given a state this function caliculates the best Q value for the next state i.e, Q(s',a')
+        '''
+
+        actions = gameState.getLegalActions(self.index)
+
+        if actions:
+            values = [self.AproaxQvalue(gameState, a) for a in actions]
+            maxValue = max(values)
+            return maxValue
+        else:
+            return 0
+
+
 
     def getFeatures(self, gameState, action):
         """
@@ -182,6 +217,138 @@ class ReflexCaptureAgent(CaptureAgent):
         a counter or a dictionary.
         """
         return {'successorScore': 1.0}
+
+    def getReward(self, gameState):
+        foodList = self.getFood(gameState).asList()
+
+        '''
+        This is reward function which returns the Cummilative reward in form of a rewward shaping.
+        '''
+        prev_gameState = self.observationHistory.pop()
+        # BRING BACK FOOD TO GET MORE REWARD
+        # food current pacman is carrying
+        prev_food_carrying = prev_gameState.getAgentState(self.index).numCarrying
+        food_carrying = gameState.getAgentState(self.index).numCarrying
+        prev_deposited = prev_gameState.getAgentState(self.index).numReturned
+        food_deposited = gameState.getAgentState(self.index).numReturned
+        food_brought_home = food_deposited - prev_deposited
+
+        net_change_food_carried = food_carrying - prev_food_carrying
+        # small reward for eating power capusule
+
+        # small reward for eating food
+        if net_change_food_carried > 0:
+            eat_reward = 0.2
+        else:
+            eat_reward = 0
+
+        # small reward for eating capusules
+        mypellets_prev = len(self.getCapsules(prev_gameState))
+        mypellets_now = len(self.getCapsules(gameState))
+        netChangePellets = mypellets_prev - mypellets_now
+        if netChangePellets > 0:
+            IAtePellete = 1
+        else:
+            IAtePellete = 0
+
+        # if brought food home give value +10
+        if food_brought_home > 0:
+            bring_food_value = 20 * food_brought_home
+        else:
+            bring_food_value = 0
+
+        # REWARD FOR EATING ENEMY PACMAN
+        myAgentPosition = prev_gameState.getAgentPosition(self.index)
+        eat_enemy_value = 0
+        enemy_ate_us_value = 0
+        for opponent in self.getOpponents(gameState):
+            maybePosition = prev_gameState.getAgentPosition(opponent)
+            mayBePositionNow = gameState.getAgentPosition(opponent)
+            WasIaPacman = prev_gameState.getAgentState(self.index).isPacman
+            AmIaPacman = gameState.getAgentState(self.index).isPacman
+            # Enemy is a pacman and he was 1 distance away from us in previous game state
+
+            if maybePosition != None:
+                IsEnemyPacman = prev_gameState.getAgentState(opponent).isPacman
+                howFarwasEnemy = self.getMazeDistance(myAgentPosition, maybePosition)
+                howFarisEnemy = self.getMazeDistance(myAgentPosition, mayBePositionNow)
+                if IsEnemyPacman:
+                    if howFarwasEnemy < 2:
+                        # Enemy has disappeared in the current state means we ate him
+                        if howFarisEnemy > 10:
+                            eat_enemy_value = 100
+                # If I was a pacman and I turned into a ghost and returned to begining
+                elif WasIaPacman == True and AmIaPacman == False:
+                    myAgentCurrenPos = gameState.getAgentPosition(self.index)
+                    if self.start == myAgentCurrenPos:
+                        enemy_ate_us_value = -100  # negative reward for being eaten
+
+        # NEGATIVE REWARDS
+        ourFoodNow = len(self.getFoodYouAreDefending(gameState).asList())
+        ourFoodPrev = len(self.getFoodYouAreDefending(prev_gameState).asList())
+        netOurFoodChange = ourFoodPrev - ourFoodNow
+
+        # small negative reward if enemy is eating our food
+
+        if netOurFoodChange > 0:
+            enemy_eating_value = -0.2
+        else:
+            enemy_eating_value = 0
+
+        # small negative reward for enemy eating power pelletes
+
+        pellets_prev = len(self.getCapsulesYouAreDefending(prev_gameState))
+        pellets_now = len(self.getCapsulesYouAreDefending(gameState))
+        netChangePellets = pellets_prev - pellets_now
+        if netChangePellets > 0:
+            enemyAtePellete = -1
+        else:
+            enemyAtePellete = 0
+
+        cummilativeReward = (eat_enemy_value + eat_reward + bring_food_value +
+                             enemy_eating_value + enemyAtePellete + enemy_ate_us_value + IAtePellete)
+
+        return cummilativeReward
+
+    def observationFunction(self, gameState):
+
+       '''
+        Note this observationFuntion ovverides the function in CaptureAgents
+
+       '''
+
+        #
+        if len(self.observationHistory) > 0 and self.isTraining:
+            self.update(self.observationHistory.pop(), self.lastAction, gameState, self.getReward(gameState))
+            # print self.getReward(gameState)
+        return gameState.makeObservation(self.index)
+
+
+    def update(self, state, action, nextState, reward):
+
+        '''
+
+        This update function updates the weights in the Training phase based on every transition:
+        Note: We initial the weights to some values we think are good and then learn them with a slow learning
+        rate
+        '''
+
+        TD = (reward + self.discountFactor * self.ValueFromQvalue(nextState))
+        Qvalue =  self.AproaxQvalue(state, action)
+
+        updatedWeights = self.weights.copy()
+
+        FeatureValues = self.getFeatures(state, action)
+
+        for feature in FeatureValues:
+            newWeight = updatedWeights[feature] + self.alphaLR * (TD-Qvalue) * FeatureValues[feature]
+            updatedWeights[feature] = newWeight
+        self.weights = updatedWeights
+
+        print 'UPDATED WEIGHTS ARE'
+        print self.weights
+
+
 
 
 class OffensiveReflexAgent(ReflexCaptureAgent):
