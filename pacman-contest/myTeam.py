@@ -40,6 +40,7 @@ validNextPositions = {}
 Walls = set()
 NoWalls = set()
 nearestEnemyLocation = None
+POWER_PELLET_VICINITY = 3
 
 
 #################
@@ -199,11 +200,15 @@ class OffensiveReflexAgent(ReflexCaptureAgent):
 
         # Our position's successor based on current action:
         successor = self.getSuccessor(gameState, action)
-        foodList = self.getFood(successor).asList()
         myPos = successor.getAgentState(self.index).getPosition()
+        foodList = self.getFood(successor).asList()
+        powerPellets = self.getCapsules(successor)
         enemies = [successor.getAgentState(i) for i in self.getOpponents(successor)]
-        nonScaredGhosts = [a for a in enemies if
-                           not a.isPacman and a.getPosition() is not None and not a.scaredTimer > 0]
+        enemyPacmen = [agent for agent in enemies if agent.isPacman and agent.getPosition() is not None]
+        Ghosts = [agent for agent in enemies if
+                  not agent.isPacman and agent.getPosition() is not None and not agent.scaredTimer > 0]
+        scaredGhosts = [agent for agent in enemies if
+                        not agent.isPacman and agent.getPosition() is not None and agent.scaredTimer > 0]
 
         #####################
         # BASELINE FEATURES #
@@ -242,6 +247,20 @@ class OffensiveReflexAgent(ReflexCaptureAgent):
             [self.getMazeDistance(successor.getAgentState(self.getTeam(gameState)[1]).getPosition(), points) for points
              in midwayPoints])
 
+        # Power Pellet Score
+        mazeToPowerPellet = 0
+        if len(powerPellets) > 0 and len(scaredGhosts) == 0:
+            mazeToPowerPellet = min([self.getMazeDistance(myPos, pellet) for pellet in powerPellets])
+        features['powerPelletScore'] = max(POWER_PELLET_VICINITY - mazeToPowerPellet, 0)
+
+        # Hunt Enemy
+        if len([enemy.isPacman for enemy in enemies]) > 0:
+            observableDistance = [self.getMazeDistance(myPos, enemy.getPosition()) for enemy in enemyPacmen]
+            # Use the smallest distance
+            if len(dists) > 0:
+                smallestDist = min(dists)
+                return smallestDist
+
         start = time.time()
 
         #######################
@@ -252,7 +271,7 @@ class OffensiveReflexAgent(ReflexCaptureAgent):
         dists = []
         for index in self.getOpponents(successor):
             enemy = successor.getAgentState(index)
-            if enemy in nonScaredGhosts:
+            if enemy in Ghosts:
                 if USE_BELIEF_DISTANCE:
                     print index, self.getMostLikelyGhostPosition(index)
                     global nearestEnemyLocation
