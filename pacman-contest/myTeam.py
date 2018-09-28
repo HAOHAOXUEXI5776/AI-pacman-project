@@ -530,11 +530,23 @@ class DefensiveReflexAgent(ReflexCaptureAgent):
     """
 
     def getFeatures(self, gameState, action):
-        features = util.Counter()
-        successor = self.getSuccessor(gameState, action)
+        gameState = gameState1.deepCopy()
 
+        # Initializing Beliefs
+        features = util.Counter()
+
+        # Our position's successor based on current action:
+        successor = self.getSuccessor(gameState, action)
         myState = successor.getAgentState(self.index)
-        myPos = myState.getPosition()
+        myPos = successor.getAgentState(self.index).getPosition()
+        foodList = self.getFood(successor).asList()
+        powerPellets = self.getCapsules(successor)
+        enemies = [successor.getAgentState(i) for i in self.getOpponents(successor)]
+        enemyPacmen = [agent for agent in enemies if agent.isPacman and agent.getPosition() is not None]
+        Ghosts = [agent for agent in enemies if
+                  not agent.isPacman and agent.getPosition() is not None and not agent.scaredTimer > 0]
+        scaredGhosts = [agent for agent in enemies if
+                        not agent.isPacman and agent.getPosition() is not None and agent.scaredTimer > 0]
 
         # Computes whether we're on defense (1) or offense (0)
         features['onDefense'] = 1
@@ -551,7 +563,21 @@ class DefensiveReflexAgent(ReflexCaptureAgent):
         if action == Directions.STOP: features['stop'] = 1
         rev = Directions.REVERSE[gameState.getAgentState(self.index).configuration.direction]
         if action == rev: features['reverse'] = 1
+        # Hunt Enemy
+        smallestDistanceToEnemy = 0
+        if len([enemy.isPacman for enemy in enemies]) > 0:
+            observableDistance = [self.getMazeDistance(myPos, enemy.getPosition()) for enemy in enemyPacmen]
+            # Use the smallest distance
+            if len(observableDistance) > 0:
+                smallestDistanceToEnemy = min(observableDistance)
+        features['huntEnemy'] = smallestDistanceToEnemy
 
+        if myState.numReturned != self.observationHistory.pop().numReturned:
+            self.defenseTimer = DEFENSE_TIMER
+        # If on defense, heavily value chasing after enemies
+        if self.defenseTimer > 0:
+            self.defenseTimer -= 1
+            features['huntEnemy'] *= 100
         return features
 
     def getWeights(self, gameState, action):
