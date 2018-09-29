@@ -44,6 +44,8 @@ POWER_PELLET_VICINITY = 5
 DEFENSE_TIMER = 100
 MINIMUM_PELLETS_TO_UNLOAD = 8
 THREAT_DISTANCE = 5
+DEFENDING = []
+DNUM = 0
 
 
 #################
@@ -119,6 +121,8 @@ class ReflexCaptureAgent(CaptureAgent):
             startState = gameState.getAgentState(1).getPosition()
         else:
             startState = gameState.getAgentState(0).getPosition()
+        global DEFENDING
+        DEFENDING = self.getFoodYouAreDefending(gameState).asList()
 
     def chooseAction(self, gameState):
         """
@@ -560,60 +564,58 @@ class DefensiveReflexAgent(ReflexCaptureAgent):
         successor = self.getSuccessor(gameState, action)
         myState = successor.getAgentState(self.index)
         myPos = successor.getAgentState(self.index).getPosition()
-        foodList = self.getFood(successor).asList()
-        powerPellets = self.getCapsules(successor)
         enemies = [successor.getAgentState(i) for i in self.getOpponents(successor)]
         enemyPacmen = [agent for agent in enemies if agent.isPacman and agent.getPosition() is not None]
-        Ghosts = [agent for agent in enemies if
-                  not agent.isPacman and agent.getPosition() is not None and not agent.scaredTimer > 0]
-        scaredGhosts = [agent for agent in enemies if
-                        not agent.isPacman and agent.getPosition() is not None and agent.scaredTimer > 0]
+        invaders = [a for a in enemies if a.isPacman and a.getPosition() is not None]
+        foodDefend = self.getFoodYouAreDefending(gameState).asList()
+        pelletsYouaredefending = self.getCapsulesYouAreDefending(successor)
 
         # Computes whether we're on defense (1) or offense (0)
         features['onDefense'] = 1
-        if myState.isPacman: features['onDefense'] = 0
+        if myState.isPacman:
+            features['onDefense'] = 0
 
         # Computes distance to invaders we can see
-        enemies = [successor.getAgentState(i) for i in self.getOpponents(successor)]
-        invaders = [a for a in enemies if a.isPacman and a.getPosition() is not None]
         features['numInvaders'] = len(invaders)
         if len(invaders) > 0:
             dists = [self.getMazeDistance(myPos, a.getPosition()) for a in invaders]
             features['invaderDistance'] = min(dists)
+
         invaderDistance = []
         if features['invaderDistance'] == 0:
             for opp in self.getOpponents(successor):
                 if successor.getAgentState(opp).isPacman:
-                    invaderDistance.append(util.manhattanDistance(myPos, self.getMostLikelyGhostPosition(opp)) / 1000.0)
+                    invaderDistance.append(util.manhattanDistance(myPos, nearestEnemyLocation) / 1000.0)
         if len(invaderDistance) > 0:
             features['invaderDistance'] = min(invaderDistance)
 
         if action == Directions.STOP: features['stop'] = 1
+
         rev = Directions.REVERSE[gameState.getAgentState(self.index).configuration.direction]
         if action == rev: features['reverse'] = 1
-        # Hunt Enemy
-        smallestDistanceToEnemy = 0
-        if len([enemy.isPacman for enemy in enemies]) > 0:
-            observableDistance = [self.getMazeDistance(myPos, enemy.getPosition()) for enemy in enemyPacmen]
-            # Use the smallest distance
-            if len(observableDistance) > 0:
-                smallestDistanceToEnemy = min(observableDistance)
-        features['huntEnemy'] = smallestDistanceToEnemy
 
-        if len(self.observationHistory) != 0:
-            if myState.numReturned != (self.observationHistory.pop()).getAgentState(self.index).numReturned:
-                global DEFENSE_TIMER
-                DEFENSE_TIMER += 1
+        features['eatingRate'] = DNUM
+        if successor.getAgentState(self.getOpponents(gameState)[0]).isPacman or successor.getAgentState(
+                self.getOpponents(gameState)[1]).isPacman:
+            foodMissing = list(set(DEFENDING).difference(foodDefend))
+            if len(foodMissing) == 1:
+                foodMissing = foodMissing[0]
+                # print foodMissing
+                features['eatingRate'] = self.getMazeDistance(myPos, foodMissing)
+                global DEFENDING
+                DEFENDING = foodDefend
+                global DNUM
+                DNUM = features['eatingRate']
+        print features['eatingRate']
+        if len(foodDefend) > 0:  # This should always be True, but better safe than sorry
+            minDistance = min([self.getMazeDistance(myPos, food) for food in foodDefend])
+            features['distanceToFood'] = minDistance
 
-        # If on defense, heavily value chasing after enemies
-        if DEFENSE_TIMER > 0:
-            global DEFENSE_TIMER
-            DEFENSE_TIMER -= 1
-            features['huntEnemy'] *= 100
-        if len(self.getFoodYouAreDefending(successor).asList()) <= 2:
-            features['huntEnemy'] *= 100
-        # print features['invaderDistance']
+        if len(pelletsYouaredefending) > 0:
+            minDistance = min([self.getMazeDistance(myPos, pelet) for pelet in pelletsYouaredefending])
+            features['distanceTopower'] = minDistance
         return features
 
     def getWeights(self, gameState, action):
-        return {'numInvaders': -1000, 'onDefense': 100, 'invaderDistance': -100, 'stop': -100, 'reverse': -2}
+        return {'numInvaders': -1000, 'onDefense': 100, 'invaderDistance': -100, 'stop': -100, 'reverse': -2,
+                'eatingRate': 500, 'distanceToFood': -0.1, 'distanceTopower': -0.2}
