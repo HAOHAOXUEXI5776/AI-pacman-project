@@ -40,7 +40,7 @@ validNextPositions = {}
 Walls = set()
 NoWalls = set()
 nearestEnemyLocation = None
-POWER_PELLET_VICINITY = 3
+POWER_PELLET_VICINITY = 5
 DEFENSE_TIMER = 100
 MINIMUM_PELLETS_TO_UNLOAD = 8
 THREAT_DISTANCE = 5
@@ -317,10 +317,6 @@ class ReflexCaptureAgent(CaptureAgent):
         # print 'UPDATED WEIGHTS ARE'
         # print self.weights
 
-    def getWeights(self, gameState, action):
-        return {'successorScore': 100, 'distanceToFood': -1, 'powerPelletScore': 100, 'ghostDistance': 5,
-                'huntEnemy': -100, 'stop': -1000, 'backToSafeZone': -1}
-
     def getCashInValue(self, myPos, gameState, myState):
         # if we have enough pellets, attempt to cash in
         if myState.numCarrying >= MINIMUM_PELLETS_TO_UNLOAD:
@@ -492,11 +488,6 @@ class OffensiveReflexAgent(ReflexCaptureAgent):
         if len(self.getFoodYouAreDefending(successor).asList()) <= 2:
             features['huntEnemy'] *= 100
 
-        # If on defense, heavily value chasing after enemies - Included in the Defense Agent
-        # if self.defenseTimer > 0:
-        #     self.defenseTimer -= 1
-        #     features['huntEnemy'] *= 100
-
         #######################
         # ENEMY APPROXIMATION #
         #######################
@@ -545,6 +536,10 @@ class OffensiveReflexAgent(ReflexCaptureAgent):
 
     def getSetOfMaximumValues(self, counterDictionary):
         return [key for key in counterDictionary.keys() if counterDictionary[key] == max(counterDictionary.values())]
+
+    def getWeights(self, gameState, action):
+        return {'successorScore': 100, 'distanceToFood': -1, 'powerPelletScore': 0, 'ghostDistance': 5,
+                'huntEnemy': -100, 'stop': -1000, 'backToSafeZone': -1}
 
 
 class DefensiveReflexAgent(ReflexCaptureAgent):
