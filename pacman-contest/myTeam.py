@@ -129,10 +129,7 @@ class ReflexCaptureAgent(CaptureAgent):
         self.observationHistory.append(gameState)
         actions = gameState.getLegalActions(self.index)
 
-        # You can profile your evaluation time by uncommenting these lines
-        start = time.time()
         values = [self.ApproxQvalue(gameState, a) for a in actions]
-        # print 'eval time for agent %d: %.4f' % (self.index, time.time() - start)
 
         maxValue = max(values)
         bestActions = [a for a, v in zip(actions, values) if v == maxValue]
@@ -178,9 +175,9 @@ class ReflexCaptureAgent(CaptureAgent):
 
     def ValueFromQvalue(self, gameState):
 
-        '''
+        """
          Given a state this function caliculates the best Q value for the next state i.e, Q(s',a')
-        '''
+        """
 
         actions = gameState.getLegalActions(self.index)
 
@@ -209,12 +206,11 @@ class ReflexCaptureAgent(CaptureAgent):
 
     def getReward(self, gameState):
         foodList = self.getFood(gameState).asList()
-        '''
+        """
         This is reward function which returns the Cummilative reward in form of a rewward shaping.
-        '''
+        """
         prev_gameState = self.observationHistory.pop()
         # BRING BACK FOOD TO GET MORE REWARD
-        # food current pacman is carrying
         prev_food_carrying = prev_gameState.getAgentState(self.index).numCarrying
         food_carrying = gameState.getAgentState(self.index).numCarrying
         prev_deposited = prev_gameState.getAgentState(self.index).numReturned
@@ -222,15 +218,14 @@ class ReflexCaptureAgent(CaptureAgent):
         food_brought_home = food_deposited - prev_deposited
 
         net_change_food_carried = food_carrying - prev_food_carrying
-        # small reward for eating power capusule
 
-        # small reward for eating food
+        # Small reward for eating food
         if net_change_food_carried > 0:
             eat_reward = 0.2
         else:
             eat_reward = 0
 
-        # small reward for eating capusules
+        # Small reward for eating capusules
         mypellets_prev = len(self.getCapsules(prev_gameState))
         mypellets_now = len(self.getCapsules(gameState))
         netChangePellets = mypellets_prev - mypellets_now
