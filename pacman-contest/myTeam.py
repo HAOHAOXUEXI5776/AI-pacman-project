@@ -299,20 +299,6 @@ class ReflexCaptureAgent(CaptureAgent):
 
         return cummilativeReward
 
-    # def observationFunction(self, gameState):
-    #
-    #    '''
-    #     Note this observationFuntion ovverides the function in CaptureAgents
-    #
-    #    '''
-    #
-    #     #
-    #     if len(self.observationHistory) > 0 and self.isTraining:
-    #         self.update(self.observationHistory.pop(), self.lastAction, gameState, self.getReward(gameState))
-    #         # print self.getReward(gameState)
-    #     return gameState.makeObservation(self.index)
-    #
-
     def update(self, state, action, nextState, reward):
 
         '''
@@ -337,6 +323,37 @@ class ReflexCaptureAgent(CaptureAgent):
         #print 'UPDATED WEIGHTS ARE'
         #print self.weights
 
+    def getWeights(self, gameState, action):
+        return {'successorScore': 100, 'distanceToFood': -1, 'powerPelletScore': 100, 'ghostDistance': 5,
+                'huntEnemy': -100, 'stop': -1000, 'backToSafeZone': -1}
+
+    def getCashInValue(self, myPos, gameState, myState):
+        # if we have enough pellets, attempt to cash in
+        if myState.numCarrying >= MINIMUM_PELLETS_TO_UNLOAD:
+            return self.getMazeDistance(self.start, myPos)
+        else:
+            return 0
+
+    def getBackToStartDistance(self, myPos, smallestGhostPosition):
+        if smallestGhostPosition > THREAT_DISTANCE or smallestGhostPosition == 0:
+            return 0
+        else:
+            return self.getMazeDistance(self.start, myPos) * 1000
+
+    def shouldRunHome(self, gameState):
+        winningBy = self.getWinningBy(gameState)
+        numCarrying = gameState.getAgentState(self.index).numCarrying
+        return gameState.data.timeleft < 80 and winningBy <= 0 < numCarrying and numCarrying >= abs(winningBy)
+
+    def getWinningBy(self, gameState):
+        if self.red:
+            return gameState.getScore()
+        else:
+            return -1 * gameState.getScore()
+
+    ######################
+    # BELIEF LOGIC BEGIN #
+    ######################
     def getMostLikelyGhostPosition(self, ghostAgentIndex):
         return max(beliefs[ghostAgentIndex])
 
@@ -379,6 +396,10 @@ class ReflexCaptureAgent(CaptureAgent):
                 probabilities[gridSpaces] = 0
         probabilities.normalize()
         beliefs[enemyIndex] = probabilities
+
+    ####################
+    # BELIEF LOGIC END #
+    ####################
 
 
 class OffensiveReflexAgent(ReflexCaptureAgent):
@@ -527,84 +548,6 @@ class OffensiveReflexAgent(ReflexCaptureAgent):
         if self.shouldRunHome(gameState):
             features['backToSafeZone'] = self.getMazeDistance(self.start, myPos) * 10000
         return features
-
-    def getWeights(self, gameState, action):
-        return {'successorScore': 100, 'distanceToFood': -1, 'powerPelletScore': 100, 'ghostDistance': 5,
-                'huntEnemy': -100, 'stop': -1000, 'backToSafeZone': -1}
-
-    def getCashInValue(self, myPos, gameState, myState):
-        # if we have enough pellets, attempt to cash in
-        if myState.numCarrying >= MINIMUM_PELLETS_TO_UNLOAD:
-            return self.getMazeDistance(self.start, myPos)
-        else:
-            return 0
-
-    def getBackToStartDistance(self, myPos, smallestGhostPosition):
-        if smallestGhostPosition > THREAT_DISTANCE or smallestGhostPosition == 0:
-            return 0
-        else:
-            return self.getMazeDistance(self.start, myPos) * 1000
-
-    def shouldRunHome(self, gameState):
-        winningBy = self.getWinningBy(gameState)
-        numCarrying = gameState.getAgentState(self.index).numCarrying
-        return gameState.data.timeleft < 80 and winningBy <= 0 < numCarrying and numCarrying >= abs(winningBy)
-
-    def getWinningBy(self, gameState):
-        if self.red:
-            return gameState.getScore()
-        else:
-            return -1 * gameState.getScore()
-
-    ######################
-    # BELIEF LOGIC BEGIN #
-    ######################
-    def getMostLikelyGhostPosition(self, ghostAgentIndex):
-        return max(beliefs[ghostAgentIndex])
-
-    def initializeBeliefs(self, gameState):
-        beliefs.extend([None for x in range(len(self.getOpponents(gameState)) + len(self.getTeam(gameState)))])
-        for opponent in self.getOpponents(gameState):
-            self.initializeBelief(opponent, gameState)
-        beliefsInitialized.append('done')
-
-    def initializeBelief(self, enemyIndex, gameState):
-        belief = util.Counter()
-        for gridSpaces in NoWalls:
-            belief[gridSpaces] = 1.0
-        belief.normalize()
-        beliefs[enemyIndex] = belief
-
-    def observeAllOpponents(self, gameState):
-        if len(beliefsInitialized):
-            for opponent in self.getOpponents(gameState):
-                self.observeOneOpponent(gameState, opponent)
-        else:
-            self.initializeBeliefs(gameState)
-
-    def observeOneOpponent(self, gameState, enemyIndex):
-        ourPosition = gameState.getAgentPosition(self.index)
-        probabilities = util.Counter()
-        maybeIndex = gameState.getAgentPosition(enemyIndex)
-        noisyDistance = gameState.getAgentDistances()[enemyIndex]
-        if maybeIndex is not None:
-            probabilities[maybeIndex] = 1
-            beliefs[enemyIndex] = probabilities
-            return
-        for gridSpaces in NoWalls:
-            trueDistance = util.manhattanDistance(gridSpaces, ourPosition)
-            modelProb = gameState.getDistanceProb(trueDistance, noisyDistance)
-            if modelProb > 0:
-                oldProb = beliefs[enemyIndex][gridSpaces]
-                probabilities[gridSpaces] = (oldProb + 0.001) * modelProb
-            else:
-                probabilities[gridSpaces] = 0
-        probabilities.normalize()
-        beliefs[enemyIndex] = probabilities
-
-    ####################
-    # BELIEF LOGIC END #
-    ####################
 
     def getSetOfMaximumValues(self, counterDictionary):
         return [key for key in counterDictionary.keys() if counterDictionary[key] == max(counterDictionary.values())]
