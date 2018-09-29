@@ -131,7 +131,7 @@ class ReflexCaptureAgent(CaptureAgent):
 
         # You can profile your evaluation time by uncommenting these lines
         start = time.time()
-        values = [self.AproaxQvalue(gameState, a) for a in actions]
+        values = [self.ApproxQvalue(gameState, a) for a in actions]
         # print 'eval time for agent %d: %.4f' % (self.index, time.time() - start)
 
         maxValue = max(values)
@@ -168,7 +168,7 @@ class ReflexCaptureAgent(CaptureAgent):
         else:
             return successor
 
-    def AproaxQvalue(self, gameState, action):
+    def ApproxQvalue(self, gameState, action):
         """
         Computes a linear combination of features and feature weights
         """
@@ -185,7 +185,7 @@ class ReflexCaptureAgent(CaptureAgent):
         actions = gameState.getLegalActions(self.index)
 
         if actions:
-            values = [self.AproaxQvalue(gameState, a) for a in actions]
+            values = [self.ApproxQvalue(gameState, a) for a in actions]
             maxValue = max(values)
             return maxValue
         else:
@@ -209,7 +209,6 @@ class ReflexCaptureAgent(CaptureAgent):
 
     def getReward(self, gameState):
         foodList = self.getFood(gameState).asList()
-
         '''
         This is reward function which returns the Cummilative reward in form of a rewward shaping.
         '''
@@ -309,7 +308,7 @@ class ReflexCaptureAgent(CaptureAgent):
         '''
 
         TD = (reward + self.discountFactor * self.ValueFromQvalue(nextState))
-        Qvalue = self.AproaxQvalue(state, action)
+        Qvalue = self.ApproxQvalue(state, action)
 
         updatedWeights = self.weights.copy()
 
@@ -320,8 +319,8 @@ class ReflexCaptureAgent(CaptureAgent):
             updatedWeights[feature] = newWeight
         self.weights = updatedWeights
 
-        #print 'UPDATED WEIGHTS ARE'
-        #print self.weights
+        # print 'UPDATED WEIGHTS ARE'
+        # print self.weights
 
     def getWeights(self, gameState, action):
         return {'successorScore': 100, 'distanceToFood': -1, 'powerPelletScore': 100, 'ghostDistance': 5,
@@ -518,7 +517,7 @@ class OffensiveReflexAgent(ReflexCaptureAgent):
                     # print index, self.getMostLikelyGhostPosition(index)
                     global nearestEnemyLocation
                     nearestEnemyLocation = self.getMostLikelyGhostPosition(index)
-                    dists.append(util.manhattanDistance(myPos, self.getMostLikelyGhostPosition(index))/10)
+                    dists.append(util.manhattanDistance(myPos, self.getMostLikelyGhostPosition(index)) / 10)
                 else:
                     dists.append(self.getMazeDistance(myPos, enemy.getPosition()))
         # Use the smallest distance
