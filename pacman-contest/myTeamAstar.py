@@ -44,6 +44,8 @@ POWER_PELLET_VICINITY = 5
 DEFENDING = []
 DNUM = 0
 nearestEnemyLocation = None
+
+
 #################
 # Team creation #
 #################
@@ -89,7 +91,6 @@ class ReflexCaptureAgent(CaptureAgent):
         self.maxPelletsToCashIn = 15
         self.AttackHistory = []
 
-
     def registerInitialState(self, gameState):
         self.start = gameState.getAgentPosition(self.index)
         CaptureAgent.registerInitialState(self, gameState)
@@ -121,16 +122,14 @@ class ReflexCaptureAgent(CaptureAgent):
             startState = gameState.getAgentState(1).getPosition()
         else:
             startState = gameState.getAgentState(0).getPosition()
-        bell = util.Counter().fromkeys(NoWalls, 1)
-        bell[startState] = 1
-        global beliefsOpponent1
-        beliefsOpponent1 = bell
-        global beliefsOpponent2
-        beliefsOpponent2 = bell
-        global OpponentLocation1
-        OpponentLocation1 = str(startState[0]) + ',' + str(startState[1])
-        global OpponentLocation2
-        OpponentLocation2 = str(startState[0]) + ',' + str(startState[1])
+        for slice in range(4):
+            if len([w for w in NoWalls if w[0] == (gameState.data.layout.width / 2) + slice]) < 5:
+                global entryPoints
+                entryPoints = sorted([w for w in NoWalls if w[0] == (gameState.data.layout.width / 2) + slice],
+                                     reverse=True)
+                print entryPoints
+                break
+        print entryPoints
 
     def chooseAction(self, gameState):
         """
@@ -144,7 +143,7 @@ class ReflexCaptureAgent(CaptureAgent):
         # You can profile your evaluation time by uncommenting these lines
         start = time.time()
         values = [self.AproaxQvalue(gameState, a) for a in actions]
-        #print 'eval time for agent %d: %.4f' % (self.index, time.time() - start)
+        # print 'eval time for agent %d: %.4f' % (self.index, time.time() - start)
 
         maxValue = max(values)
         bestActions = [a for a, v in zip(actions, values) if v == maxValue]
@@ -165,7 +164,7 @@ class ReflexCaptureAgent(CaptureAgent):
 
         else:
             bestAction = random.choice(bestActions)
-        #self.PrevAction = bestAction
+        # self.PrevAction = bestAction
         return bestAction
 
     def getSuccessor(self, gameState, action):
@@ -202,8 +201,6 @@ class ReflexCaptureAgent(CaptureAgent):
             return maxValue
         else:
             return 0
-
-
 
     def getFeatures(self, gameState, action):
         """
@@ -315,16 +312,15 @@ class ReflexCaptureAgent(CaptureAgent):
 
     def observationFunction(self, gameState):
 
-       '''
-        Note this observationFuntion ovverides the function in CaptureAgents
+        '''
+         Note this observationFuntion ovverides the function in CaptureAgents
 
-       '''
-       if len(self.observationHistory) > 0 and self.isTraining:
-           self.update(self.observationHistory.pop(), self.lastAction, gameState, self.getReward(gameState))
+        '''
+        if len(self.observationHistory) > 0 and self.isTraining:
+            self.update(self.observationHistory.pop(), self.lastAction, gameState, self.getReward(gameState))
             # print self.getReward(gameState)
 
-       return gameState.makeObservation(self.index)
-
+        return gameState.makeObservation(self.index)
 
     def update(self, state, action, nextState, reward):
 
@@ -336,14 +332,14 @@ class ReflexCaptureAgent(CaptureAgent):
         '''
 
         TD = (reward + self.discountFactor * self.ValueFromQvalue(nextState))
-        Qvalue =  self.AproaxQvalue(state, action)
+        Qvalue = self.AproaxQvalue(state, action)
 
         updatedWeights = self.weights.copy()
 
         FeatureValues = self.getFeatures(state, action)
 
         for feature in FeatureValues:
-            newWeight = updatedWeights[feature] + self.alphaLR * (TD-Qvalue) * FeatureValues[feature]
+            newWeight = updatedWeights[feature] + self.alphaLR * (TD - Qvalue) * FeatureValues[feature]
             updatedWeights[feature] = newWeight
         self.weights = updatedWeights
 
@@ -402,6 +398,7 @@ class ReflexCaptureAgent(CaptureAgent):
 
     def getSetOfMaximumValues(self, counterDictionary):
         return [key for key in counterDictionary.keys() if counterDictionary[key] == max(counterDictionary.values())]
+
     ######################
     # Astar Login Begins #
     ######################
@@ -451,8 +448,8 @@ class ReflexCaptureAgent(CaptureAgent):
         currentPosition, currentPath, currentTotal = startPosition, [], 0
         # Priority queue uses the maze distance between the entered point and its closest goal position to decide which comes first
         queue = util.PriorityQueueWithFunction(lambda entry: entry[2] +  # Total cost so far
-                                                             (100)*self.getMazeDistance(startPosition, entry[0]) if
-                                                    entry[0] in avoidPositions else 0 +  # Avoid enemy locations
+                                                             (100) * self.getMazeDistance(startPosition, entry[0]) if
+        entry[0] in avoidPositions else 0 +  # Avoid enemy locations
                                         min(self.getMazeDistance(entry[0], endPosition) for endPosition in
                                             goalPositions))
 
@@ -525,7 +522,7 @@ class OffensiveReflexAgent(ReflexCaptureAgent):
             enemy = successor.getAgentState(index)
             if enemy in nonScaredGhosts:
                 if USE_BELIEF_DISTANCE:
-                     dists.append(self.getMazeDistance(myPos, self.getMostLikelyGhostPosition(index)))
+                    dists.append(self.getMazeDistance(myPos, self.getMostLikelyGhostPosition(index)))
                 else:
                     dists.append(self.getMazeDistance(myPos, enemy.getPosition()))
         # Use the smallest distance
@@ -534,13 +531,10 @@ class OffensiveReflexAgent(ReflexCaptureAgent):
             features['ghostDistance'] = smallestDist
         if action == Directions.STOP: features['stop'] = 1
 
-
-
-
         return features
 
     def getWeights(self, gameState, action):
-        return { 'ghostDistance': -10, 'stop': -100}
+        return {'ghostDistance': -10, 'stop': -100}
 
     def attackQvalue(self, gameState, action):
         features = self.getFeatures(gameState, action)
@@ -574,9 +568,6 @@ class OffensiveReflexAgent(ReflexCaptureAgent):
             return Directions.STOP  # If no legal actions return None
         return random.choice(bestActions)  # Else choose one of the best actions randomly
 
-
-
-
     def chooseAction(self, state):  # Addressing the exploration vs exploitation dilemma!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
         if len(self.AttackHistory):
@@ -597,14 +588,12 @@ class OffensiveReflexAgent(ReflexCaptureAgent):
                 enemy = successor.getAgentState(index)
                 if enemy in Ghosts:
                     if USE_BELIEF_DISTANCE:
-                        #print index, self.getMostLikelyGhostPosition(index)
+                        # print index, self.getMostLikelyGhostPosition(index)
                         global nearestEnemyLocation
                         nearestEnemyLocation = self.getMostLikelyGhostPosition(index)
                         dists.append(util.manhattanDistance(myPos, self.getMostLikelyGhostPosition(index)) / 10)
                     else:
                         dists.append(self.getMazeDistance(myPos, enemy.getPosition()))
-
-
 
         # currentPos = state.getAgentPosition(2)
         # print type(currentPos)
@@ -614,9 +603,6 @@ class OffensiveReflexAgent(ReflexCaptureAgent):
         # Append game state to observation history...
         self.AttackHistory.append(state)
         self.observeAllOpponents(state)
-
-
-
 
         global validNextPositions
         legalCoordinates = []
@@ -655,7 +641,6 @@ class OffensiveReflexAgent(ReflexCaptureAgent):
         enemyGhostLocations = [state.getAgentPosition(i) for i in enemyIndices if
                                self.isGhost(state, i) and not self.isScared(state, i)]
 
-
         capsules = self.getCapsules(state)
 
         attackablePacmen = [state.getAgentPosition(i) for i in enemyIndices if
@@ -664,7 +649,6 @@ class OffensiveReflexAgent(ReflexCaptureAgent):
         scaredGhostLocations = [state.getAgentPosition(i) for i in self.getOpponents(state) if
                                 self.isScared(state, i) and self.isGhost(state, i)]
 
-
         # If enemy is right after you stop eating and try to escape  to power pelletsby setting flag as 1
 
         flag = 0
@@ -672,10 +656,10 @@ class OffensiveReflexAgent(ReflexCaptureAgent):
             for ghost in (enemyGhostLocations):
                 currentPos = state.getAgentPosition(self.index)
                 distanceToGhost = self.getMazeDistance(currentPos, ghost)
-                if distanceToGhost <4 :
-                    #print "HELLLO RUN AWAY BITCH"
+                if distanceToGhost < 4:
+                    # print "HELLLO RUN AWAY BITCH"
                     for enemy in enemyIndices:
-                         timer = state.getAgentState(enemy).scaredTimer
+                        timer = state.getAgentState(enemy).scaredTimer
                     # if ghost is scare but less time on timer eat  or avoid it
                     if timer < 20:
                         flag = 1
@@ -689,22 +673,15 @@ class OffensiveReflexAgent(ReflexCaptureAgent):
                 else:
                     flag = 0
         # run after capsules
-        if flag ==1:
+        if flag == 1:
             print 'I WANT CAPUSLE'
-            goalPositions = set(capsules +scaredGhostLocations  + attackablePacmen)
+            goalPositions = set(capsules + scaredGhostLocations + attackablePacmen)
             if len(goalPositions) == 0:
                 goalPositions = set(nowalls)
             avoidPositions = set(enemyGhostLocations)
         else:
             goalPositions = set(food.asList() + attackablePacmen)
-            avoidPositions = set(enemyGhostLocations+capsules)
-
-
-
-
-
-
-
+            avoidPositions = set(enemyGhostLocations + capsules)
 
         astar_path = self.aStarSearch(state.getAgentPosition(self.index), state, goalPositions, avoidPositions)
         action_astar = astar_path[0]
@@ -716,7 +693,7 @@ class OffensiveReflexAgent(ReflexCaptureAgent):
         if action_astar in legalActions:
             actionToBeExecuted = action_astar
         else:
-            actionToBeExecuted =  self.computeActionFromQValues(state)
+            actionToBeExecuted = self.computeActionFromQValues(state)
             print 'CHOICE', actionToBeExecuted
 
         '''
@@ -757,10 +734,9 @@ class OffensiveReflexAgent(ReflexCaptureAgent):
                         bestDist = dist
         '''
 
-
         actionToReturnHome = None
         if True:  # Red team
-            if (self.getScore(state) >4  and state.getAgentState(self.index).numCarrying >1) or foodLeft <= 2:
+            if (self.getScore(state) > 4 and state.getAgentState(self.index).numCarrying > 1) or foodLeft <= 2:
                 # print "Run to home..."
                 # print "min:", self.minPelletsToCashIn, "mypellets:", (
                 #         pellets_eaten_by_0 + pellets_eaten_by_2), "max:", self.maxPelletsToCashIn
@@ -800,10 +776,10 @@ class OffensiveReflexAgent(ReflexCaptureAgent):
                 #         pellets_eaten_by_0 + pellets_eaten_by_2), "max:", self.maxPelletsToCashIn
                 # print "nowalls in the midway", nowalls
                 goalPositionsOnWayToHome = set(nowalls)
-                avoidPositionsOnWayToHome = set(enemyGhostLocations+capsules)
-                #self.getSuccessor(state, action_astar)
+                avoidPositionsOnWayToHome = set(enemyGhostLocations + capsules)
+                # self.getSuccessor(state, action_astar)
                 pathToReturnHome = self.aStarSearch(state.getAgentPosition(self.index), state, goalPositionsOnWayToHome,
-                                                      avoidPositionsOnWayToHome)
+                                                    avoidPositionsOnWayToHome)
 
                 # print "agentpos", state.getAgentPosition(self.index)
                 # print "pathToReturnHome:", pathToReturnHome
@@ -820,16 +796,13 @@ class OffensiveReflexAgent(ReflexCaptureAgent):
                     # print "random reverse action"
 
                     actionToBeExecuted = self.computeActionFromQValues(state)
-                    #print 'CHOICE', actionToBeExecuted
+                    # print 'CHOICE', actionToBeExecuted
 
                 # print "------------------------------------------------------------------------------------"
         if (DEBUG):
             print "AGENT " + str(self.index) + " chose action " + action + "!"
 
-
-
         self.PrevAction = actionToBeExecuted
-
 
         return actionToBeExecuted
 
@@ -890,13 +863,13 @@ class DefensiveReflexAgent(ReflexCaptureAgent):
             foodMissing = list(set(DEFENDING).difference(foodDefend))
             if len(foodMissing) != 0:
                 foodMissing = foodMissing[0]
-                #print foodMissing
+                # print foodMissing
                 features['eatingRate'] += self.getMazeDistance(myPos, foodMissing)
                 print features['eatingRate'], 'DNUM:', DNUM  # , 'DEFENDING:', DEFENDING
             DEFENDING = foodDefend
 
             DNUM = features['eatingRate']
-        #print features['eatingRate']
+        # print features['eatingRate']
 
         if len(foodDefend) > 0:  # This should always be True, but better safe than sorry
             minDistance = min([self.getMazeDistance(myPos, food) for food in foodDefend])
@@ -907,10 +880,6 @@ class DefensiveReflexAgent(ReflexCaptureAgent):
             features['distanceTopower'] = minDistance
         return features
 
-
     def getWeights(self, gameState, action):
         return {'numInvaders': -1000, 'onDefense': 100, 'invaderDistance': -100, 'stop': -100, 'reverse': -2,
                 'eatingRate': 500, 'distanceToFood': -0.00001, 'distanceTopower': -0.000001}
-
-
-
