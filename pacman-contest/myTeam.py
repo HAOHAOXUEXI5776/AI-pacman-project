@@ -89,7 +89,7 @@ class ReflexCaptureAgent(CaptureAgent):
         self.discountFactor = 0.75
         self.alphaLR = 0.0000000002
         self.PrevAction = None
-        self.minPelletsToCashIn = 4
+        self.minPelletsToCashIn = 5
         self.maxPelletsToCashIn = 15
         self.AttackHistory = []
 
@@ -850,13 +850,13 @@ class DefensiveReflexAgent(ReflexCaptureAgent):
             dists = [self.getMazeDistance(myPos, a.getPosition()) for a in invaders]
             features['invaderDistance'] = min(dists)
 
-        invaderDistance = []
-        if features['invaderDistance'] == 0:
-            for opp in self.getOpponents(successor):
-                if successor.getAgentState(opp).isPacman:
-                    invaderDistance.append(util.manhattanDistance(myPos, nearestEnemyLocation) / 10000.0)
-        if len(invaderDistance) > 0:
-            features['invaderDistance'] = min(invaderDistance)
+        # invaderDistance = []
+        # if features['invaderDistance'] == 0:
+        #     for opp in self.getOpponents(successor):
+        #         if successor.getAgentState(opp).isPacman:
+        #             invaderDistance.append(util.manhattanDistance(myPos, nearestEnemyLocation) / 10000.0)
+        # if len(invaderDistance) > 0:
+        #     features['invaderDistance'] = min(invaderDistance)
 
         if action == Directions.STOP: features['stop'] = 1
 
@@ -890,6 +890,6 @@ class DefensiveReflexAgent(ReflexCaptureAgent):
         return features
 
     def getWeights(self, gameState, action):
-        return {'numInvaders': -100, 'onDefense': 10, 'invaderDistance': -10, 'stop': -100, 'reverse': -2,
+        return {'numInvaders': -100, 'onDefense': 10, 'invaderDistance': -100, 'stop': -100, 'reverse': -2,
                 'eatingRate': -1000, 'distanceToFood': -0.00001, 'distanceTopower': +0.000001, 'dist2middle': 3000,
                 'isScared': -100}
