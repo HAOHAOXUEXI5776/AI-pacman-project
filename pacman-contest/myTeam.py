@@ -126,10 +126,6 @@ class ReflexCaptureAgent(CaptureAgent):
         Walls = WallsTemp
         global NoWalls
         NoWalls = noWallsTemp
-        if self.index % 2 == 0:
-            enemyStartState = gameState.getAgentState(1).getPosition()
-        else:
-            enemyStartState = gameState.getAgentState(0).getPosition()
         #########################
         # DEFENSIVE ENTRY POINT #
         #########################
@@ -197,6 +193,14 @@ class ReflexCaptureAgent(CaptureAgent):
                 i += 1
             print 'OFFENSIVE********UPPER********'
             print 'END OF ITERATION'
+        if self.index % 2 == 0:
+            # Signifies we are the RED Team
+            enemyStartState = gameState.getAgentState(1).getPosition()
+        else:
+            enemyStartState = gameState.getAgentState(0).getPosition()
+            swap = self.defensiveEntry
+            self.defensiveEntry = self.offensiveEntry
+            self.offensiveEntry = swap
 
     def chooseAction(self, gameState):
         """
@@ -985,14 +989,14 @@ class DefensiveReflexAgent(ReflexCaptureAgent):
                     self.getOpponents(state)[1]).isPacman:
                 foodMissing = list(set(DEFENDING).difference(foodDefend))
                 global latestFoodMissing
-                #print('Food Missing:', foodMissing)
+                # print('Food Missing:', foodMissing)
                 hasFooodBeenEatenLastime = (len(foodDefend) != len(self.getFoodYouAreDefending(prev_state).asList()))
-                #print('HasFoodBeenEatenInLastTurn: - - - - -', hasFooodBeenEatenLastime)
+                # print('HasFoodBeenEatenInLastTurn: - - - - -', hasFooodBeenEatenLastime)
                 if foodMissing:
-                    #print('Latest Missing:', latestFoodMissing)
+                    # print('Latest Missing:', latestFoodMissing)
                     latestFoodMissing = foodMissing[0]
                 else:
-                    #print('Else Condition: FM:', foodMissing)
+                    # print('Else Condition: FM:', foodMissing)
                     foodMissing = [latestFoodMissing]
 
         # dists = []
@@ -1066,12 +1070,7 @@ class DefensiveReflexAgent(ReflexCaptureAgent):
         else:
             goalPositions = set(foodMissing).union(set(self.defensiveEntry))
 
-
-
-
-
         avoidPositions = []
-
 
         if goalPositions:
             astar_path = self.aStarSearch(state.getAgentPosition(self.index), state, goalPositions)
