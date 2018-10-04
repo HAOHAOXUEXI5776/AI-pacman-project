@@ -666,12 +666,6 @@ class OffensiveReflexAgent(ReflexCaptureAgent):
                     else:
                         dists.append(self.getMazeDistance(myPos, enemy.getPosition()))
 
-        # currentPos = state.getAgentPosition(2)
-        # print type(currentPos)
-        # oldPos = (self.AttackHistory.pop()).getAgentPosition(0)
-        # #print type(oldPos)
-        # if currentPos[0]-oldPos[0]==1
-        # Append game state to observation history...
         self.AttackHistory.append(state)
         self.observeAllOpponents(state)
 
