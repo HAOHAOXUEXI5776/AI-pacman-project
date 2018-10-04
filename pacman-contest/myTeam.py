@@ -131,7 +131,7 @@ class ReflexCaptureAgent(CaptureAgent):
         coordsUpper = []
         coordsLower = []
         coords = []
-        for i in range(7):
+        for i in range(5):
             coordsLower.append(
                 [location for location in NoWalls if location[0] == (centralX - i) and location[1] <= centralY])
             coordsUpper.append(
@@ -151,8 +151,8 @@ class ReflexCaptureAgent(CaptureAgent):
             i += 1
         print '**********UPPER********'
         print 'END OF ITERATION'
-        #self.entryP = min(coords, key=len)
-        self.entryP = list(set(min(coordsLower, key=len)).union(min(coordsUpper, key=len)))
+        self.entryP = min(coords, key=len)
+        #self.entryP = list(set(min(coordsLower, key=len)).union(min(coordsUpper, key=len)))
         #print self.entryP
         global latestFoodMissing
         latestFoodMissing = random.choice(self.entryP)
@@ -945,7 +945,7 @@ class DefensiveReflexAgent(ReflexCaptureAgent):
                 foodMissing = list(set(DEFENDING).difference(foodDefend))
                 global latestFoodMissing
                 #print('Food Missing:', foodMissing)
-                hasFooodBeenEatenLastime = (len(foodMissing)>0)
+                hasFooodBeenEatenLastime = (len(foodDefend) != len(self.getFoodYouAreDefending(prev_state).asList()))
                 #print('HasFoodBeenEatenInLastTurn: - - - - -', hasFooodBeenEatenLastime)
                 if foodMissing:
                     #print('Latest Missing:', latestFoodMissing)
@@ -1017,10 +1017,9 @@ class DefensiveReflexAgent(ReflexCaptureAgent):
         attackablePacmen = [state.getAgentPosition(i) for i in enemyIndices if
                             self.isPacman(state, i) and self.isGhost(state, self.index)]
 
-        if attackablePacmen:
-            goalPositions = set(foodMissing).union(set(attackablePacmen))
+        anyEnemy = [state.getAgentState(i).isPacman for i in enemyIndices]
 
-        elif hasFooodBeenEatenLastime:
+        if anyEnemy[0] or anyEnemy[1]:
             goalPositions = set(foodMissing).union(set(attackablePacmen))
 
         else:
