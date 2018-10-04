@@ -47,6 +47,8 @@ DNUM = 0
 nearestEnemyLocation = None
 entryPoints = []
 latestFoodMissing = (16, 6)
+MODE = 'normal'
+DEPTH = 5
 
 
 #################
@@ -94,6 +96,8 @@ class ReflexCaptureAgent(CaptureAgent):
         self.maxPelletsToCashIn = 15
         self.AttackHistory = []
         self.DefenceHistory = []
+        self.offensiveEntry = None
+        self.defensiveEntry = None
 
     def registerInitialState(self, gameState):
         self.start = gameState.getAgentPosition(self.index)
@@ -126,36 +130,73 @@ class ReflexCaptureAgent(CaptureAgent):
             enemyStartState = gameState.getAgentState(1).getPosition()
         else:
             enemyStartState = gameState.getAgentState(0).getPosition()
-        centralX = enemyStartState[0] / 2
-        centralY = enemyStartState[1] / 2
+        #########################
+        # DEFENSIVE ENTRY POINT #
+        #########################
+        centralX = (gameState.data.layout.width / 2) - 1
+        centralY = (gameState.data.layout.height / 2) - 2
         coordsUpper = []
         coordsLower = []
         coords = []
-        for i in range(5):
+        for i in range(DEPTH):
             coordsLower.append(
                 [location for location in NoWalls if location[0] == (centralX - i) and location[1] <= centralY])
             coordsUpper.append(
                 [location for location in NoWalls if location[0] == (centralX - i) and location[1] > centralY])
             coords.append([location for location in NoWalls if location[0] == (centralX - i)])
-        print '**********LOWER********'
-        i = 0
-        for l in coordsLower:
-            print len(l), sorted(l), len(coords[i])
-            i += 1
-        print '**********LOWER********'
-        print '-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-'
-        print '**********UPPER********'
-        i = 0
-        for l in coordsUpper:
-            print len(l), sorted(l), len(coords[i])
-            i += 1
-        print '**********UPPER********'
-        print 'END OF ITERATION'
-        self.entryP = min(coords, key=len)
-        #self.entryP = list(set(min(coordsLower, key=len)).union(min(coordsUpper, key=len)))
-        #print self.entryP
+        if MODE == 'mix':
+            self.defensiveEntry = list(set(min(coordsLower, key=len)).union(min(coordsUpper, key=len)))
+        if MODE == 'normal':
+            self.defensiveEntry = min(coords, key=len)
         global latestFoodMissing
-        latestFoodMissing = random.choice(self.entryP)
+        latestFoodMissing = random.choice(self.defensiveEntry)
+        if DEBUG:
+            print 'DEFENSIVE********LOWER********'
+            i = 0
+            for l in coordsLower:
+                print len(l), sorted(l), len(coords[i])
+                i += 1
+            print 'DEFENSIVE********LOWER********'
+            print '-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-'
+            print 'DEFENSIVE********UPPER********'
+            i = 0
+            for l in coordsUpper:
+                print len(l), sorted(l), len(coords[i])
+                i += 1
+            print 'DEFENSIVE********UPPER********'
+        #########################
+        # OFFENSIVE ENTRY POINT #
+        #########################
+        centralX = ((gameState.data.layout.width / 2) - 1) + 1
+        centralY = (gameState.data.layout.height / 2) - 2
+        coordsUpper = []
+        coordsLower = []
+        coords = []
+        for i in range(DEPTH):
+            coordsLower.append(
+                [location for location in NoWalls if location[0] == (centralX + i) and location[1] <= centralY])
+            coordsUpper.append(
+                [location for location in NoWalls if location[0] == (centralX + i) and location[1] > centralY])
+            coords.append([location for location in NoWalls if location[0] == (centralX + i)])
+        if MODE == 'mix':
+            self.offensiveEntry = list(set(min(coordsLower, key=len)).union(min(coordsUpper, key=len)))
+        if MODE == 'normal':
+            self.offensiveEntry = min(coords, key=len)
+        if DEBUG:
+            print 'OFFENSIVE********LOWER********'
+            i = 0
+            for l in coordsLower:
+                print len(l), sorted(l), len(coords[i])
+                i += 1
+            print 'OFFENSIVE********LOWER********'
+            print '-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-'
+            print 'OFFENSIVE********UPPER********'
+            i = 0
+            for l in coordsUpper:
+                print len(l), sorted(l), len(coords[i])
+                i += 1
+            print 'OFFENSIVE********UPPER********'
+            print 'END OF ITERATION'
 
     def chooseAction(self, gameState):
         """
@@ -1023,7 +1064,7 @@ class DefensiveReflexAgent(ReflexCaptureAgent):
             goalPositions = set(foodMissing).union(set(attackablePacmen))
 
         else:
-            goalPositions = set(foodMissing).union(set(self.entryP))
+            goalPositions = set(foodMissing).union(set(self.defensiveEntry))
 
 
 
