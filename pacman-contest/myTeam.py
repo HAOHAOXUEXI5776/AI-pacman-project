@@ -46,6 +46,9 @@ DEFENDING = []
 DNUM = 0
 nearestEnemyLocation = None
 entryPoints = []
+latestFoodMissing = (16, 6)
+MODE = 'normal'
+DEPTH = 5
 
 
 #################
@@ -89,9 +92,12 @@ class ReflexCaptureAgent(CaptureAgent):
         self.discountFactor = 0.75
         self.alphaLR = 0.0000000002
         self.PrevAction = None
-        self.minPelletsToCashIn = 4
+        self.minPelletsToCashIn = 5
         self.maxPelletsToCashIn = 15
         self.AttackHistory = []
+        self.DefenceHistory = []
+        self.offensiveEntry = None
+        self.defensiveEntry = None
 
     def registerInitialState(self, gameState):
         self.start = gameState.getAgentPosition(self.index)
@@ -120,18 +126,81 @@ class ReflexCaptureAgent(CaptureAgent):
         Walls = WallsTemp
         global NoWalls
         NoWalls = noWallsTemp
+        #########################
+        # DEFENSIVE ENTRY POINT #
+        #########################
+        centralX = (gameState.data.layout.width / 2) - 1
+        centralY = (gameState.data.layout.height / 2) - 2
+        coordsUpper = []
+        coordsLower = []
+        coords = []
+        for i in range(DEPTH):
+            coordsLower.append(
+                [location for location in NoWalls if location[0] == (centralX - i) and location[1] <= centralY])
+            coordsUpper.append(
+                [location for location in NoWalls if location[0] == (centralX - i) and location[1] > centralY])
+            coords.append([location for location in NoWalls if location[0] == (centralX - i)])
+        if MODE == 'mix':
+            self.defensiveEntry = list(set(min(coordsLower, key=len)).union(min(coordsUpper, key=len)))
+        if MODE == 'normal':
+            self.defensiveEntry = min(coords, key=len)
+        global latestFoodMissing
+        latestFoodMissing = random.choice(self.defensiveEntry)
+        if DEBUG:
+            print 'DEFENSIVE********LOWER********'
+            i = 0
+            for l in coordsLower:
+                print len(l), sorted(l), len(coords[i])
+                i += 1
+            print 'DEFENSIVE********LOWER********'
+            print '-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-'
+            print 'DEFENSIVE********UPPER********'
+            i = 0
+            for l in coordsUpper:
+                print len(l), sorted(l), len(coords[i])
+                i += 1
+            print 'DEFENSIVE********UPPER********'
+        #########################
+        # OFFENSIVE ENTRY POINT #
+        #########################
+        centralX = ((gameState.data.layout.width / 2) - 1) + 1
+        centralY = (gameState.data.layout.height / 2) - 2
+        coordsUpper = []
+        coordsLower = []
+        coords = []
+        for i in range(DEPTH):
+            coordsLower.append(
+                [location for location in NoWalls if location[0] == (centralX + i) and location[1] <= centralY])
+            coordsUpper.append(
+                [location for location in NoWalls if location[0] == (centralX + i) and location[1] > centralY])
+            coords.append([location for location in NoWalls if location[0] == (centralX + i)])
+        if MODE == 'mix':
+            self.offensiveEntry = list(set(min(coordsLower, key=len)).union(min(coordsUpper, key=len)))
+        if MODE == 'normal':
+            self.offensiveEntry = min(coords, key=len)
+        if DEBUG:
+            print 'OFFENSIVE********LOWER********'
+            i = 0
+            for l in coordsLower:
+                print len(l), sorted(l), len(coords[i])
+                i += 1
+            print 'OFFENSIVE********LOWER********'
+            print '-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-'
+            print 'OFFENSIVE********UPPER********'
+            i = 0
+            for l in coordsUpper:
+                print len(l), sorted(l), len(coords[i])
+                i += 1
+            print 'OFFENSIVE********UPPER********'
+            print 'END OF ITERATION'
         if self.index % 2 == 0:
-            startState = gameState.getAgentState(1).getPosition()
+            # Signifies we are the RED Team
+            enemyStartState = gameState.getAgentState(1).getPosition()
         else:
-            startState = gameState.getAgentState(0).getPosition()
-        for slice in range(4):
-            if len([w for w in NoWalls if w[0] == (gameState.data.layout.width / 2) + slice]) < 5:
-                global entryPoints
-                entryPoints = sorted([w for w in NoWalls if w[0] == (gameState.data.layout.width / 2) + slice],
-                                     reverse=True)
-                #print entryPoints
-                break
-        # print entryPoints
+            enemyStartState = gameState.getAgentState(0).getPosition()
+            swap = self.defensiveEntry
+            self.defensiveEntry = self.offensiveEntry
+            self.offensiveEntry = swap
 
     def chooseAction(self, gameState):
         """
@@ -524,7 +593,7 @@ class OffensiveReflexAgent(ReflexCaptureAgent):
             enemy = successor.getAgentState(index)
             if enemy in nonScaredGhosts:
                 if USE_BELIEF_DISTANCE:
-                     dists.append(self.getMazeDistance(myPos, self.getMostLikelyGhostPosition(index)))
+                    dists.append(self.getMazeDistance(myPos, self.getMostLikelyGhostPosition(index)))
                 else:
                     dists.append(self.getMazeDistance(myPos, enemy.getPosition()))
         # Use the smallest distance
@@ -533,13 +602,10 @@ class OffensiveReflexAgent(ReflexCaptureAgent):
             features['ghostDistance'] = smallestDist
         if action == Directions.STOP: features['stop'] = 1
 
-
-
-
         return features
 
     def getWeights(self, gameState, action):
-        return { 'ghostDistance': -10, 'stop': -100}
+        return {'ghostDistance': -10, 'stop': -100}
 
     def attackQvalue(self, gameState, action):
         features = self.getFeatures(gameState, action)
@@ -573,9 +639,6 @@ class OffensiveReflexAgent(ReflexCaptureAgent):
             return Directions.STOP  # If no legal actions return None
         return random.choice(bestActions)  # Else choose one of the best actions randomly
 
-
-
-
     def chooseAction(self, state):  # Addressing the exploration vs exploitation dilemma!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
         if len(self.AttackHistory):
@@ -596,26 +659,15 @@ class OffensiveReflexAgent(ReflexCaptureAgent):
                 enemy = successor.getAgentState(index)
                 if enemy in Ghosts:
                     if USE_BELIEF_DISTANCE:
-                        #print index, self.getMostLikelyGhostPosition(index)
+                        # print index, self.getMostLikelyGhostPosition(index)
                         global nearestEnemyLocation
                         nearestEnemyLocation = self.getMostLikelyGhostPosition(index)
                         dists.append(util.manhattanDistance(myPos, self.getMostLikelyGhostPosition(index)) / 10)
                     else:
                         dists.append(self.getMazeDistance(myPos, enemy.getPosition()))
 
-
-
-        # currentPos = state.getAgentPosition(2)
-        # print type(currentPos)
-        # oldPos = (self.AttackHistory.pop()).getAgentPosition(0)
-        # #print type(oldPos)
-        # if currentPos[0]-oldPos[0]==1
-        # Append game state to observation history...
         self.AttackHistory.append(state)
         self.observeAllOpponents(state)
-
-
-
 
         global validNextPositions
         legalCoordinates = []
@@ -654,7 +706,6 @@ class OffensiveReflexAgent(ReflexCaptureAgent):
         enemyGhostLocations = [state.getAgentPosition(i) for i in enemyIndices if
                                self.isGhost(state, i) and not self.isScared(state, i)]
 
-
         capsules = self.getCapsules(state)
 
         attackablePacmen = [state.getAgentPosition(i) for i in enemyIndices if
@@ -663,7 +714,6 @@ class OffensiveReflexAgent(ReflexCaptureAgent):
         scaredGhostLocations = [state.getAgentPosition(i) for i in self.getOpponents(state) if
                                 self.isScared(state, i) and self.isGhost(state, i)]
 
-
         # If enemy is right after you stop eating and try to escape  to power pelletsby setting flag as 1
 
         flag = 0
@@ -671,10 +721,10 @@ class OffensiveReflexAgent(ReflexCaptureAgent):
             for ghost in (enemyGhostLocations):
                 currentPos = state.getAgentPosition(self.index)
                 distanceToGhost = self.getMazeDistance(currentPos, ghost)
-                if distanceToGhost <4 :
-                    #print "HELLLO RUN AWAY BITCH"
+                if distanceToGhost < 4:
+                    # print "HELLLO RUN AWAY BITCH"
                     for enemy in enemyIndices:
-                         timer = state.getAgentState(enemy).scaredTimer
+                        timer = state.getAgentState(enemy).scaredTimer
                     # if ghost is scare but less time on timer eat  or avoid it
                     if timer < 20:
                         flag = 1
@@ -688,21 +738,14 @@ class OffensiveReflexAgent(ReflexCaptureAgent):
                 else:
                     flag = 0
         # run after capsules
-        if flag ==1:
-            goalPositions = set(capsules +scaredGhostLocations  + attackablePacmen)
+        if flag == 1:
+            goalPositions = set(capsules + scaredGhostLocations + attackablePacmen)
             if len(goalPositions) == 0:
                 goalPositions = set(nowalls)
             avoidPositions = set(enemyGhostLocations)
         else:
             goalPositions = set(food.asList() + attackablePacmen)
-            avoidPositions = set(enemyGhostLocations+capsules)
-
-
-
-
-
-
-
+            avoidPositions = set(enemyGhostLocations + capsules)
 
         astar_path = self.aStarSearch(state.getAgentPosition(self.index), state, goalPositions, avoidPositions)
 
@@ -720,9 +763,8 @@ class OffensiveReflexAgent(ReflexCaptureAgent):
         if action_astar in legalActions:
             actionToBeExecuted = action_astar
         else:
-            actionToBeExecuted =  self.computeActionFromQValues(state)
-            #print 'QVALUE CHOICE', actionToBeExecuted
-
+            actionToBeExecuted = self.computeActionFromQValues(state)
+            # print 'QVALUE CHOICE', actionToBeExecuted
 
         ######################################ASTAR
         self.lastAction = action_astar  # used by observationFunction during training phase
@@ -736,12 +778,11 @@ class OffensiveReflexAgent(ReflexCaptureAgent):
         pellets_eaten_by_3 = successor.getAgentState(3).numCarrying
         ##########################################################s
 
-
         ## IF SCORE IS POSITIVE DON"T TRY TO BRING HOME TOO MUCH FOOD ##
 
         actionToReturnHome = None
         if True:  # Red team
-            if (self.getScore(state) >4  and state.getAgentState(self.index).numCarrying >2) or foodLeft <= 2:
+            if (self.getScore(state) > 4 and state.getAgentState(self.index).numCarrying > 2) or foodLeft <= 2:
                 # print "Run to home..."
                 # print "min:", self.minPelletsToCashIn, "mypellets:", (
                 #         pellets_eaten_by_0 + pellets_eaten_by_2), "max:", self.maxPelletsToCashIn
@@ -780,10 +821,10 @@ class OffensiveReflexAgent(ReflexCaptureAgent):
                 #         pellets_eaten_by_0 + pellets_eaten_by_2), "max:", self.maxPelletsToCashIn
                 # print "nowalls in the midway", nowalls
                 goalPositionsOnWayToHome = set(nowalls)
-                avoidPositionsOnWayToHome = set(enemyGhostLocations+capsules)
-                #self.getSuccessor(state, action_astar)
+                avoidPositionsOnWayToHome = set(enemyGhostLocations + capsules)
+                # self.getSuccessor(state, action_astar)
                 pathToReturnHome = self.aStarSearch(state.getAgentPosition(self.index), state, goalPositionsOnWayToHome,
-                                                      avoidPositionsOnWayToHome)
+                                                    avoidPositionsOnWayToHome)
 
                 # print "agentpos", state.getAgentPosition(self.index)
                 # print "pathToReturnHome:", pathToReturnHome
@@ -800,20 +841,15 @@ class OffensiveReflexAgent(ReflexCaptureAgent):
                     # print "random reverse action"
 
                     actionToBeExecuted = self.computeActionFromQValues(state)
-                    #print 'CHOICE', actionToBeExecuted
+                    # print 'CHOICE', actionToBeExecuted
 
                 # print "------------------------------------------------------------------------------------"
         if (DEBUG):
             print "AGENT " + str(self.index) + " chose action " + action + "!"
 
-
-
         self.PrevAction = actionToBeExecuted
 
-
         return actionToBeExecuted
-
-
 
 
 class DefensiveReflexAgent(ReflexCaptureAgent):
@@ -850,13 +886,13 @@ class DefensiveReflexAgent(ReflexCaptureAgent):
             dists = [self.getMazeDistance(myPos, a.getPosition()) for a in invaders]
             features['invaderDistance'] = min(dists)
 
-        invaderDistance = []
-        if features['invaderDistance'] == 0:
-            for opp in self.getOpponents(successor):
-                if successor.getAgentState(opp).isPacman:
-                    invaderDistance.append(util.manhattanDistance(myPos, nearestEnemyLocation) / 10000.0)
-        if len(invaderDistance) > 0:
-            features['invaderDistance'] = min(invaderDistance)
+        # invaderDistance = []
+        # if features['invaderDistance'] == 0:
+        #     for opp in self.getOpponents(successor):
+        #         if successor.getAgentState(opp).isPacman:
+        #             invaderDistance.append(util.manhattanDistance(myPos, nearestEnemyLocation) / 10000.0)
+        # if len(invaderDistance) > 0:
+        #     features['invaderDistance'] = min(invaderDistance)
 
         if action == Directions.STOP: features['stop'] = 1
 
@@ -890,6 +926,168 @@ class DefensiveReflexAgent(ReflexCaptureAgent):
         return features
 
     def getWeights(self, gameState, action):
-        return {'numInvaders': -100, 'onDefense': 10, 'invaderDistance': -10, 'stop': -100, 'reverse': -2,
-                'eatingRate': -1000, 'distanceToFood': -0.00001, 'distanceTopower': +0.000001, 'dist2middle': 3000,
+        return {'numInvaders': -100, 'onDefense': 10, 'invaderDistance': -100, 'stop': -100, 'reverse': -2,
+                'eatingRate': -1000, 'distanceToFood': -0.00001, 'distanceTopower': +0.000001,
                 'isScared': -100}
+
+    def attackQvalue(self, gameState, action):
+        features = self.getFeatures(gameState, action)
+        weights = self.getWeights(gameState, action)
+        return features * weights
+
+    def computeActionFromQValues(self, state):
+        """
+          Compute the best action to take in a state.  Note that if there
+          are no legal actions, which is the case at the terminal state,
+          you should return None.
+        """
+        bestValue = -999999
+        bestActions = None
+        for action in state.getLegalActions(self.index):
+            # For each action, if that action is the best then
+            # update bestValue and update bestActions to be
+            # a list containing only that action.
+            # If the action is tied for best, then add it to
+            # the list of actions with the best value.
+            value = self.attackQvalue(state, action)
+            if (DEBUG):
+                print
+                "ACTION: " + action + "           QVALUE: " + str(value)
+            if value > bestValue:
+                bestActions = [action]
+                bestValue = value
+            elif value == bestValue:
+                bestActions.append(action)
+        if bestActions == None:
+            return Directions.STOP  # If no legal actions return None
+        return random.choice(bestActions)  # Else choose one of the best actions randomly
+
+    def chooseAction(self, state):  # Addressing the exploration vs exploitation dilemma!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+
+        hasFooodBeenEatenLastime = False
+        foodMissing = []
+        foodDefend = self.getFoodYouAreDefending(state).asList()
+        if len(self.DefenceHistory):
+            prev_state = self.DefenceHistory.pop()
+
+            global nearestEnemyLocation
+            if nearestEnemyLocation is None:
+                nearestEnemyLocation = state.getInitialAgentPosition(self.getOpponents(state)[0])
+
+            successor = self.getSuccessor(prev_state, self.PrevAction)
+            myPos = successor.getAgentState(self.index).getPosition()
+            enemies = [successor.getAgentState(i) for i in self.getOpponents(successor)]
+            Ghosts = [agent for agent in enemies if
+                      not agent.isPacman and agent.getPosition() is not None and not agent.scaredTimer > 0]
+            if successor.getAgentState(self.getOpponents(state)[0]).isPacman or successor.getAgentState(
+                    self.getOpponents(state)[1]).isPacman:
+                foodMissing = list(set(DEFENDING).difference(foodDefend))
+                global latestFoodMissing
+                # print('Food Missing:', foodMissing)
+                hasFooodBeenEatenLastime = (len(foodDefend) != len(self.getFoodYouAreDefending(prev_state).asList()))
+                # print('HasFoodBeenEatenInLastTurn: - - - - -', hasFooodBeenEatenLastime)
+                if foodMissing:
+                    # print('Latest Missing:', latestFoodMissing)
+                    latestFoodMissing = foodMissing[0]
+                else:
+                    # print('Else Condition: FM:', foodMissing)
+                    foodMissing = [latestFoodMissing]
+
+        # dists = []
+        # for index in self.getOpponents(successor):
+        #     enemy = successor.getAgentState(index)
+        #     if enemy in Ghosts:
+        #         if USE_BELIEF_DISTANCE:
+        #             #print index, self.getMostLikelyGhostPosition(index)
+        #             global nearestEnemyLocation
+        #             nearestEnemyLocation = self.getMostLikelyGhostPosition(index)
+        #             dists.append(util.manhattanDistance(myPos, self.getMostLikelyGhostPosition(index)) / 10)
+        #         else:
+        #             dists.append(self.getMazeDistance(myPos, enemy.getPosition()))
+
+        # currentPos = state.getAgentPosition(2)
+        # print type(currentPos)
+        # oldPos = (self.AttackHistory.pop()).getAgentPosition(0)
+        # #print type(oldPos)
+        # if currentPos[0]-oldPos[0]==1
+        # Append game state to observation history...
+        self.DefenceHistory.append(state)
+        self.observeAllOpponents(state)
+
+        global validNextPositions
+        legalCoordinates = []
+        keys = validNextPositions.keys()
+        for key in keys:
+            possibleMoves = len(validNextPositions[key])
+            if possibleMoves == 1:
+                x = int(key.split(',')[0])
+                y = int(key.split(',')[1])
+                legalCoordinates.append((x, y))
+
+        nowalls = []
+        for i in range(1, state.data.layout.height):
+
+            if self.index % 2 == 0:
+                if state.hasWall(state.data.layout.width / 2 - 1, i) == False:
+                    nowalls.append((state.data.layout.width / 2 - 1, i))
+            else:
+                if state.hasWall(state.data.layout.width / 2, i) == False:
+                    nowalls.append((state.data.layout.width / 2, i))
+
+        ###################################TRY TO DO THIS IN INITIAL 15 SECONDS###########################3
+        walls = state.getWalls().asList()
+        walls = list(set(walls))
+        opponentWalls = []
+        if self.index % 2 == 0:
+            opponentWalls = [w for w in walls if w[0] > 16]  # WARNING: VALUES HARDCODED
+        else:
+            opponentWalls = [w for w in walls if w[0] < 17]
+
+        ################################################################################################3
+        # Pick Action
+        ########################################Astar code added
+        food = self.getFood(state)
+        enemyIndices = self.getOpponents(state)
+        # enemyGhostLocations = [state.getAgentPosition(i) for i in enemyIndices if
+        #                        not self.isGhost(state, i) and not self.isScared(state, i)]
+
+        capsules = self.getCapsules(state)
+
+        attackablePacmen = [state.getAgentPosition(i) for i in enemyIndices if
+                            self.isPacman(state, i) and self.isGhost(state, self.index)]
+
+        anyEnemy = [state.getAgentState(i).isPacman for i in enemyIndices]
+
+        if anyEnemy[0] or anyEnemy[1]:
+            goalPositions = set(foodMissing).union(set(attackablePacmen))
+
+        else:
+            goalPositions = set(foodMissing).union(set(self.defensiveEntry))
+
+        avoidPositions = []
+
+        if goalPositions:
+            astar_path = self.aStarSearch(state.getAgentPosition(self.index), state, goalPositions)
+
+        else:
+            astar_path = None
+        # THIS LOOP BELOW FOR IF GOING BACK IS AN ISSUE IF NO CAPUSLES
+        if astar_path:
+            action_astar = astar_path[0]
+        else:
+            action_astar = self.computeActionFromQValues(state)
+
+        # print "astar_action:",action_astar
+        ######################################################################################################################
+
+        actionToBeExecuted = None
+        legalActions = state.getLegalActions(self.index)
+        if action_astar in legalActions:
+            actionToBeExecuted = action_astar
+        else:
+            actionToBeExecuted = self.computeActionFromQValues(state)
+            # print 'QVALUE CHOICE', actionToBeExecuted
+
+        self.PrevAction = actionToBeExecuted
+
+        return actionToBeExecuted
