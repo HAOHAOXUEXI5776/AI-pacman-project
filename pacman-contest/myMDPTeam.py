@@ -114,11 +114,13 @@ class ValueIterationAgent():
     def getQValue(self, state, action):
         return self.computeQValueFromValues(state, action)
 
+    '''
     def print_state(self):
         for state in self.values.keys():
             qvalue = self.values[state]
             reward = self.mdp.getReward(state, '', state)
             print 'state/qvalue/reward', state, qvalue, reward
+    '''
 
 
 class PacmanMDP():
@@ -152,11 +154,12 @@ class PacmanMDP():
         self._rewards[(x, y - 1)] += reward / 2
         self._rewards[(x, y + 1)] += reward / 2
 
-
+    '''
     def print_state(self):
         print "States", self._states
         print "Rewards", self._rewards
         print "Possible Actions", self._possibleActions
+    '''
 
 
     def getStates(self):
@@ -282,6 +285,8 @@ class ReflexCaptureAgent(CaptureAgent):
     homeXBoundary = self.start[0] + ((self._maxx // 2 - 1) * self.sign)
     cells = [(homeXBoundary, y) for y in range(1, self._maxy)]
     self.homeBoundaryCells = [item for item in cells if item not in self.walls]
+
+    '''
     print "Home boundary cells: ", self.homeBoundaryCells
 
 
@@ -296,6 +301,7 @@ class ReflexCaptureAgent(CaptureAgent):
     print "Our indices", team_indices
     print "Our Capsules:", self.getCapsulesYouAreDefending(gameState)
     print "Our Food:", self.getFoodYouAreDefending(gameState).asList()
+    '''
 
 
   def assignRewards(self, grid, mdp, rewardShape, myPos, targetPos):
@@ -365,6 +371,8 @@ class ReflexCaptureAgent(CaptureAgent):
 
         # No reward if enemy ghost is scared
         if enemyState.scaredTimer >= 3:
+            if myState.isPacman:
+                mdp.addRewardWithNeighbours(enemyPos, -0.2)
             continue
 
         # No rewards if we are ghost
@@ -423,15 +431,16 @@ class ReflexCaptureAgent(CaptureAgent):
     if timeElapsed > 0.5:
         self.warnings += 1
     if goingHome:
-        print "myPos/myIndex/chosenAction/timeConsumed", myPos, self.index, bestAction, time.time() - start
-        evaluator.print_state()
+        #print "myPos/myIndex/chosenAction/timeConsumed", myPos, self.index, bestAction, time.time() - start
+        #evaluator.print_state()
+        pass
     #print 'eval time for agent %d: %.4f' % (self.index, time.time() - start)
 
     return bestAction
 
 
   def final(self, gameState):
-      print "Warnings count:", self.warnings
+      #print "Warnings count:", self.warnings
       CaptureAgent.final(self, gameState)
 
   def assignGoHomeRewards(self, grid, mdp, rewardShape, baseDistance):
@@ -441,7 +450,7 @@ class ReflexCaptureAgent(CaptureAgent):
               reward = (cell_to_home_distance - baseDistance) * rewardShape
               mdp.addReward(cell, reward)
 
-
+  '''
   def printLegalActions(self, gameState, agent_idx):
       state = gameState.getAgentState(agent_idx)
 
@@ -463,6 +472,7 @@ class ReflexCaptureAgent(CaptureAgent):
                   pass
       except AttributeError:
           pass
+  '''
 
   def getSuccessor(self, gameState, action):
     """
