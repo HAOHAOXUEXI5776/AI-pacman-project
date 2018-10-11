@@ -426,7 +426,7 @@ class ReflexCaptureAgent(CaptureAgent):
         # Rewards for going home when we carry enough food or game is close to an end
         timeLeft = gameState.data.timeleft // 4
         food_carrying = gameState.getAgentState(self.index).numCarrying
-        print food_carrying
+        # print food_carrying
         goingHome = (foodLeft <= 2) or (timeLeft < 40) or ((food_carrying % 5 == 0) and food_carrying != 0)
         if goingHome:
             # print "Food/time left", foodLeft, timeLeft
