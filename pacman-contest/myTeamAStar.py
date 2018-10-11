@@ -470,9 +470,9 @@ class ReflexCaptureAgent(CaptureAgent):
     def getSetOfMaximumValues(self, counterDictionary):
         return [key for key in counterDictionary.keys() if counterDictionary[key] == max(counterDictionary.values())]
 
-    ######################
-    # Astar Login Begins #
-    ######################
+    #####################
+    # ASTAR LOGIC BEGIN #
+    #####################
 
     def isGhost(self, gameState, index):
         """
@@ -993,24 +993,6 @@ class DefensiveReflexAgent(ReflexCaptureAgent):
                     # print('Else Condition: FM:', foodMissing)
                     foodMissing = [latestFoodMissing]
 
-        # dists = []
-        # for index in self.getOpponents(successor):
-        #     enemy = successor.getAgentState(index)
-        #     if enemy in Ghosts:
-        #         if USE_BELIEF_DISTANCE:
-        #             #print index, self.getMostLikelyGhostPosition(index)
-        #             global nearestEnemyLocation
-        #             nearestEnemyLocation = self.getMostLikelyGhostPosition(index)
-        #             dists.append(util.manhattanDistance(myPos, self.getMostLikelyGhostPosition(index)) / 10)
-        #         else:
-        #             dists.append(self.getMazeDistance(myPos, enemy.getPosition()))
-
-        # currentPos = state.getAgentPosition(2)
-        # print type(currentPos)
-        # oldPos = (self.AttackHistory.pop()).getAgentPosition(0)
-        # #print type(oldPos)
-        # if currentPos[0]-oldPos[0]==1
-        # Append game state to observation history...
         self.DefenceHistory.append(state)
         self.observeAllOpponents(state)
 
@@ -1034,7 +1016,8 @@ class DefensiveReflexAgent(ReflexCaptureAgent):
                 if state.hasWall(state.data.layout.width / 2, i) == False:
                     nowalls.append((state.data.layout.width / 2, i))
 
-        ###################################TRY TO DO THIS IN INITIAL 15 SECONDS###########################3
+        # Get opponent walls #
+
         walls = state.getWalls().asList()
         walls = list(set(walls))
         opponentWalls = []
@@ -1043,14 +1026,11 @@ class DefensiveReflexAgent(ReflexCaptureAgent):
         else:
             opponentWalls = [w for w in walls if w[0] < 17]
 
-        ################################################################################################3
-        # Pick Action
-        ########################################Astar code added
+        #######################
+        # CHOOSE ACTION ASTAR #
+        #######################
         food = self.getFood(state)
         enemyIndices = self.getOpponents(state)
-        # enemyGhostLocations = [state.getAgentPosition(i) for i in enemyIndices if
-        #                        not self.isGhost(state, i) and not self.isScared(state, i)]
-
         capsules = self.getCapsules(state)
 
         attackablePacmen = [state.getAgentPosition(i) for i in enemyIndices if
@@ -1071,14 +1051,12 @@ class DefensiveReflexAgent(ReflexCaptureAgent):
 
         else:
             astar_path = None
+
         # THIS LOOP BELOW FOR IF GOING BACK IS AN ISSUE IF NO CAPUSLES
         if astar_path:
             action_astar = astar_path[0]
         else:
             action_astar = self.computeActionFromQValues(state)
-
-        # print "astar_action:",action_astar
-        ######################################################################################################################
 
         actionToBeExecuted = None
         legalActions = state.getLegalActions(self.index)
