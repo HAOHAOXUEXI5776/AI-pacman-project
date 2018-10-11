@@ -103,7 +103,7 @@ class ReflexCaptureAgent(CaptureAgent):
         self.start = gameState.getAgentPosition(self.index)
         CaptureAgent.registerInitialState(self, gameState)
         # Offline data computation, can be utilised further.
-        arr = np.zeros((32, 16))
+        arr = np.zeros((gameState.data.layout.width - 2, gameState.data.layout.height - 2))
         noWallsTemp = set([(index[0][0] + 1, index[0][1] + 1) for index in np.ndenumerate(arr) if
                            not gameState.hasWall(index[0][0] + 1, index[0][1] + 1)])
         WallsTemp = set([(index[0][0] + 1, index[0][1] + 1) for index in np.ndenumerate(arr) if
@@ -885,14 +885,6 @@ class DefensiveReflexAgent(ReflexCaptureAgent):
         if len(invaders) > 0:
             dists = [self.getMazeDistance(myPos, a.getPosition()) for a in invaders]
             features['invaderDistance'] = min(dists)
-
-        # invaderDistance = []
-        # if features['invaderDistance'] == 0:
-        #     for opp in self.getOpponents(successor):
-        #         if successor.getAgentState(opp).isPacman:
-        #             invaderDistance.append(util.manhattanDistance(myPos, nearestEnemyLocation) / 10000.0)
-        # if len(invaderDistance) > 0:
-        #     features['invaderDistance'] = min(invaderDistance)
 
         if action == Directions.STOP: features['stop'] = 1
 
