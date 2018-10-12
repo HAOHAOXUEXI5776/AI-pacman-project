@@ -4,7 +4,7 @@
 # educational purposes provided that (1) you do not distribute or publish
 # solutions, (2) you retain this notice, and (3) you provide clear
 # attribution to UC Berkeley, including a link to http://ai.berkeley.edu.
-#
+# 
 # Attribution Information: The Pacman AI projects were developed at UC Berkeley.
 # The core projects and autograders were primarily created by John DeNero
 # (denero@cs.berkeley.edu) and Dan Klein (klein@cs.berkeley.edu).
@@ -19,6 +19,7 @@
 # purposes. The Pacman AI projects were developed at UC Berkeley, primarily by
 # John DeNero (denero@cs.berkeley.edu) and Dan Klein (klein@cs.berkeley.edu).
 # For more info, see http://inst.eecs.berkeley.edu/~cs188/sp09/pacman.html
+
 
 from captureAgents import CaptureAgent
 import distanceCalculator
@@ -50,12 +51,13 @@ DEFENDING = []
 DNUM = 0
 nearestEnemyLocation = None
 entryPoints = []
-latestFoodMissing = (16, 6)
+latestFoodMissing = None
 MODE = 'normal'
-DEPTH = 5
+DEPTH = 4
 
 
 ###########################################
+
 
 class ValueIterationAgent():
     """
@@ -139,13 +141,12 @@ class ValueIterationAgent():
     def getQValue(self, state, action):
         return self.computeQValueFromValues(state, action)
 
-    '''
     def print_state(self):
         for state in self.values.keys():
             qvalue = self.values[state]
             reward = self.mdp.getReward(state, '', state)
-            print 'state/qvalue/reward', state, qvalue, reward
-    '''
+            print
+            'state/qvalue/reward', state, qvalue, reward
 
 
 class PacmanMDP():
@@ -297,18 +298,36 @@ class ReflexCaptureAgent(CaptureAgent):
         CaptureAgent.registerInitialState(self, gameState)
         self.warnings = 0
 
+        # Enemy and teammate indices
         self.enemy_indices = self.getOpponents(gameState)
         team_indices = self.getTeam(gameState)
         team_indices.remove(self.index)
         self.teammate_index = team_indices[0]
 
+        # Analysing layout
         self.walls = set(gameState.data.layout.walls.asList())
         self._maxx = max([item[0] for item in self.walls])
         self._maxy = max([item[1] for item in self.walls])
         self.sign = 1 if gameState.isOnRedTeam(self.index) else -1
-        homeXBoundary = self.start[0] + ((self._maxx // 2 - 1) * self.sign)
-        cells = [(homeXBoundary, y) for y in range(1, self._maxy)]
+
+        # Determining home boundary
+        self.homeXBoundary = self.start[0] + ((self._maxx // 2 - 1) * self.sign)
+        cells = [(self.homeXBoundary, y) for y in range(1, self._maxy)]
         self.homeBoundaryCells = [item for item in cells if item not in self.walls]
+
+        # Determining legal actions count for all cells
+        valid_cells = self._getGrid(1, 1, self._maxx, self._maxy)
+        self._legalActions = util.Counter()
+        for cell in valid_cells:
+            x, y = cell
+            if (x - 1, y) in valid_cells:
+                self._legalActions[cell] += 1
+            if (x + 1, y) in valid_cells:
+                self._legalActions[cell] += 1
+            if (x, y - 1) in valid_cells:
+                self._legalActions[cell] += 1
+            if (x, y + 1) in valid_cells:
+                self._legalActions[cell] += 1
 
         '''
         print "Home boundary cells: ", self.homeBoundaryCells
@@ -327,6 +346,12 @@ class ReflexCaptureAgent(CaptureAgent):
         print "Our Food:", self.getFoodYouAreDefending(gameState).asList()
         '''
 
+    def isHomeArena(self, cell):
+        x, _ = cell
+        x1 = self.start[0]
+        x2 = self.homeXBoundary
+        return x1 <= x <= x2 or x2 <= x <= x1
+
     def assignRewards(self, grid, mdp, rewardShape, myPos, targetPos):
         rewards = []
         distanceToTarget = self.distancer.getDistance(targetPos, myPos)
@@ -334,7 +359,7 @@ class ReflexCaptureAgent(CaptureAgent):
             distance = self.distancer.getDistance(cell, targetPos)
             if distance <= distanceToTarget:
                 reward = rewardShape / max(float(distance), .5)
-                maxNoise = reward / 2  # reward / 5.
+                maxNoise = reward / 5.
                 reward += random.uniform(-maxNoise, maxNoise)
                 mdp.addReward(cell, reward)
                 rewards.append((myPos, cell, distance, reward))
@@ -346,14 +371,13 @@ class ReflexCaptureAgent(CaptureAgent):
         """
         start = time.time()
 
-        vicinity = 6
-        goHomeReward = 2
-        powerPelletReward = 1
-        food_base_reward = 0.1
+        vicinity = 7
+        goHomeReward = 1
+        foodRwdShape = 0.14
 
-        trap_reward = -0.1  # change this 0.08
-        noEnemyPPReward = - 0.2
-        enemy_position_reward = -1
+        trapRwdShape = -0.1
+        ghostAttackRwdShape = -1.5
+        ppRwdShape = 1
 
         myState = gameState.getAgentState(self.index)
         myPos = myState.getPosition()
@@ -374,69 +398,83 @@ class ReflexCaptureAgent(CaptureAgent):
         foodLeft = len(foodPositions)
         if foodLeft > 2:
             for foodPos in foodPositions:
-                self.assignRewards(grid, mdp, rewardShape=food_base_reward, myPos=myPos,
+                self.assignRewards(grid, mdp, rewardShape=foodRwdShape, myPos=myPos,
                                    targetPos=foodPos)
 
         # Rewards for ghosts in vicinity
+        enemyNearby = False
+        enemies = []
         for idx in self.getOpponents(gameState):
             enemyState = gameState.getAgentState(idx)
             enemyPos = enemyState.getPosition()
 
-            # No rewards if enemy is invisible
-            if not enemyPos:
-                continue
+            if enemyPos:
+                enemy_distance = self.distancer.getDistance(myPos, enemyPos)
+                if enemy_distance <= 5:
+                    enemyNearby = True
+                    enemies.append((enemyState, enemyPos))
 
+        if enemyNearby:
             # No rewards if enemy on our territory
             if enemyState.isPacman:
-                continue
-
-            # No reward if enemy ghost is scared
-            if enemyState.scaredTimer >= 3:
-                if myState.isPacman:
-                    mdp.addRewardWithNeighbours(enemyPos, -0.2)
-                continue
-
-            # No rewards if we are ghost
-            # if not myState.isPacman:
-            #    continue
-
-            # No reward if enemy too far away
-            enemy_distance = self.distancer.getDistance(myPos, enemyPos)
-            if enemy_distance > 5:
-                continue
+                pass
 
             # Negative reward for enemy's positions nearby
-            reward = enemy_position_reward * foodLeft * (vicinity - enemy_distance + 1)
-            # print "Reward for enemy nearby, EnemyPos / distance / reward", enemyPos, enemy_distance, reward
-            mdp.addRewardWithNeighbours(enemyPos, reward)
+            enemyMinDistance = 5
+            enemyScaredTimer = min([item.scaredTimer for item, _ in enemies])
+            for enemyState, enemyPos in enemies:
+                if enemyState.scaredTimer > 2:
+                    continue
+                enemy_distance = self.distancer.getDistance(myPos, enemyPos)
+                reward = ghostAttackRwdShape * foodLeft * (vicinity - enemy_distance + 1.)
+                # print "Reward for enemy nearby, EnemyPos / distance / reward", enemyPos, enemy_distance, reward
+                mdp.addRewardWithNeighbours(enemyPos, reward)
+                enemyMinDistance = min(enemyMinDistance, enemy_distance)
 
-            # Negative reward for going in trapping positions
             for cell in grid:
+                # No rewards for cells in home arena
+                if self.isHomeArena(cell) or enemyScaredTimer > 9:
+                    continue
+
+                # Negative reward for going in trapping positions
                 cell_to_home_distance = self.getDistanceHome(cell)
                 # print "Distance home / cell distance home", distance_home, cell_to_home_distance
+                enemyDistCoef = float(6 - enemyMinDistance) / 2.
                 if cell_to_home_distance > distance_home:
-                    reward = (cell_to_home_distance - distance_home) * trap_reward
+                    reward = float(cell_to_home_distance - distance_home) * trapRwdShape * enemyDistCoef
                     mdp.addReward(cell, reward)
 
-            # Positive reward for going towards Power pellets
-            for pelletPos in self.getCapsules(gameState):
-                self.assignRewards(grid, mdp, rewardShape=powerPelletReward,
-                                   myPos=myPos, targetPos=pelletPos)
+                # Negative rewards for going in cells with 1 legal action
+                legalActions = self._legalActions[cell]
+                if legalActions == 1:
+                    reward = float(trapRwdShape * enemyDistCoef * 2)
+                    mdp.addRewardWithNeighbours(cell, reward)
+                if legalActions == 2 and enemyMinDistance <= 3:
+                    mdp.addRewardWithNeighbours(cell, trapRwdShape)
+
+                # Positive reward for going towards Power pellets
+                for pelletPos in self.getCapsules(gameState):
+                    self.assignRewards(grid, mdp, rewardShape=ppRwdShape,
+                                       myPos=myPos, targetPos=pelletPos)
+
+                # Positive rewards for bringing food home
+                foodCarriyng = min(myState.numCarrying, 10)
+                rewardShape = goHomeReward * max(foodCarriyng - 1, 0) / 10
+                self.assignGoHomeRewards(grid, mdp, rewardShape, myPos)
 
         # Rewards for going home when we carry enough food or game is close to an end
         timeLeft = gameState.data.timeleft // 4
-        food_carrying = gameState.getAgentState(self.index).numCarrying
-        # print food_carrying
-        goingHome = (foodLeft <= 2) or (timeLeft < 40) or ((food_carrying % 5 == 0) and food_carrying != 0)
+        goingHome = (foodLeft <= 2) or (timeLeft < 40)
         if goingHome:
+            self.assignGoHomeRewards(grid, mdp, goHomeReward, myPos)
             # print "Food/time left", foodLeft, timeLeft
-            for targetCell in self.homeBoundaryCells:
-                rewards = self.assignRewards(grid, mdp, rewardShape=goHomeReward, myPos=myPos, targetPos=targetCell)
-                # print 'MiddlePos/myPos/Rewards', targetCell, myPos, rewards
+            # for targetCell in self.homeBoundaryCells:
+            #    rewards = self.assignRewards(grid, mdp, rewardShape=goHomeReward, myPos=myPos, targetPos=targetCell)
+            # print 'MiddlePos/myPos/Rewards', targetCell, myPos, rewards
 
         # Rewards to be close to teammate pacman
 
-        rewardShape = 1000. / (1000 + self.distancer.getDistance(myPos, self.start)) - 1
+        rewardShape = 250. / (250 + self.distancer.getDistance(myPos, self.start)) - 1
         # print rewardShape
         self.assignRewards(grid, mdp, rewardShape=rewardShape, myPos=myPos, targetPos=teammatePos)
         mdp.addRewardWithNeighbours(teammatePos, rewardShape)
@@ -444,7 +482,10 @@ class ReflexCaptureAgent(CaptureAgent):
         # reward = -1 / max(1, self.distancer.getDistance(myPos, teammatePos))
         # mdp.addRewardWithNeighbours(teammatePos, reward)
 
-        evaluator = ValueIterationAgent(mdp, discount=0.8, iterations=120)
+        evaluator = ValueIterationAgent(mdp, discount=0.8, iterations=100)
+        # if pacmanIsUnderTheThreat:
+        #    evaluator.print_state()
+
         bestAction = evaluator.getAction(myPos)
 
         timeElapsed = time.time() - start
@@ -462,12 +503,10 @@ class ReflexCaptureAgent(CaptureAgent):
         # print "Warnings count:", self.warnings
         CaptureAgent.final(self, gameState)
 
-    def assignGoHomeRewards(self, grid, mdp, rewardShape, baseDistance):
-        for cell in grid:
-            cell_to_home_distance = self.getDistanceHome(cell)
-            if cell_to_home_distance > baseDistance:
-                reward = (cell_to_home_distance - baseDistance) * rewardShape
-                mdp.addReward(cell, reward)
+    def assignGoHomeRewards(self, grid, mdp, rewardShape, myPos):
+        for targetCell in self.homeBoundaryCells:
+            rewards = self.assignRewards(grid, mdp, rewardShape=rewardShape, myPos=myPos, targetPos=targetCell)
+        return rewards
 
     '''
     def printLegalActions(self, gameState, agent_idx):
@@ -571,7 +610,8 @@ class ReflexCaptureAgentAstar(CaptureAgent):
         self.isTraining = False
         self.episodesSoFar = 0
         self.epsilon = 0.05
-        self.discountFactor = 0.75
+        self.discountFactor = 0.65
+
         self.alphaLR = 0.0000000002
         self.PrevAction = None
         self.minPelletsToCashIn = 5
@@ -627,21 +667,28 @@ class ReflexCaptureAgentAstar(CaptureAgent):
         if MODE == 'normal':
             self.defensiveEntry = min(coords, key=len)
         global latestFoodMissing
-        latestFoodMissing = random.choice(self.defensiveEntry)
+        latestFoodMissing = random.choice(self.getFood(gameState).asList())
         if DEBUG:
-            print 'DEFENSIVE********LOWER********'
+            print
+            'DEFENSIVE********LOWER********'
             i = 0
             for l in coordsLower:
-                print len(l), sorted(l), len(coords[i])
+                print
+                len(l), sorted(l), len(coords[i])
                 i += 1
-            print 'DEFENSIVE********LOWER********'
-            print '-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-'
-            print 'DEFENSIVE********UPPER********'
+            print
+            'DEFENSIVE********LOWER********'
+            print
+            '-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-'
+            print
+            'DEFENSIVE********UPPER********'
             i = 0
             for l in coordsUpper:
-                print len(l), sorted(l), len(coords[i])
+                print
+                len(l), sorted(l), len(coords[i])
                 i += 1
-            print 'DEFENSIVE********UPPER********'
+            print
+            'DEFENSIVE********UPPER********'
         #########################
         # OFFENSIVE ENTRY POINT #
         #########################
@@ -661,20 +708,28 @@ class ReflexCaptureAgentAstar(CaptureAgent):
         if MODE == 'normal':
             self.offensiveEntry = min(coords, key=len)
         if DEBUG:
-            print 'OFFENSIVE********LOWER********'
+            print
+            'OFFENSIVE********LOWER********'
             i = 0
             for l in coordsLower:
-                print len(l), sorted(l), len(coords[i])
+                print
+                len(l), sorted(l), len(coords[i])
                 i += 1
-            print 'OFFENSIVE********LOWER********'
-            print '-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-'
-            print 'OFFENSIVE********UPPER********'
+            print
+            'OFFENSIVE********LOWER********'
+            print
+            '-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-'
+            print
+            'OFFENSIVE********UPPER********'
             i = 0
             for l in coordsUpper:
-                print len(l), sorted(l), len(coords[i])
+                print
+                len(l), sorted(l), len(coords[i])
                 i += 1
-            print 'OFFENSIVE********UPPER********'
-            print 'END OF ITERATION'
+            print
+            'OFFENSIVE********UPPER********'
+            print
+            'END OF ITERATION'
         if self.index % 2 == 0:
             # Signifies we are the RED Team
             enemyStartState = gameState.getAgentState(1).getPosition()
@@ -950,8 +1005,8 @@ class ReflexCaptureAgentAstar(CaptureAgent):
         queue = util.PriorityQueueWithFunction(lambda entry: entry[2] +  # Total cost so far
                                                              (100) * self.getMazeDistance(startPosition, entry[0]) if
         entry[0] in avoidPositions else 0 +  # Avoid enemy locations
-                                        min(self.getMazeDistance(entry[0], endPosition) for endPosition in
-                                            goalPositions))
+                                        np.min([self.getMazeDistance(entry[0], endPosition) for endPosition in
+                                                goalPositions]))
 
         # Keeps track of visited positions
         visited = set([currentPosition])
@@ -997,67 +1052,33 @@ class DefensiveAstar(ReflexCaptureAgentAstar):
     such an agent.
     """
 
-    def getFeatures(self, gameState1, action):
-        gameState = gameState1.deepCopy()
-
-        # Initializing Beliefs
+    def getFeatures(self, gameState, action):
         features = util.Counter()
-
-        # Our position's successor based on current action:
         successor = self.getSuccessor(gameState, action)
+
         myState = successor.getAgentState(self.index)
-        myPos = successor.getAgentState(self.index).getPosition()
-        enemies = [successor.getAgentState(i) for i in self.getOpponents(successor)]
-        invaders = [a for a in enemies if a.isPacman and a.getPosition() is not None]
-        foodDefend = self.getFoodYouAreDefending(gameState).asList()
-        pelletsYouaredefending = self.getCapsulesYouAreDefending(successor)
+        myPos = myState.getPosition()
 
         # Computes whether we're on defense (1) or offense (0)
         features['onDefense'] = 1
-        if myState.isPacman:
-            features['onDefense'] = 0
+        if myState.isPacman: features['onDefense'] = 0
 
         # Computes distance to invaders we can see
+        enemies = [successor.getAgentState(i) for i in self.getOpponents(successor)]
+        invaders = [a for a in enemies if a.isPacman and a.getPosition() != None]
         features['numInvaders'] = len(invaders)
         if len(invaders) > 0:
             dists = [self.getMazeDistance(myPos, a.getPosition()) for a in invaders]
             features['invaderDistance'] = min(dists)
 
         if action == Directions.STOP: features['stop'] = 1
-
         rev = Directions.REVERSE[gameState.getAgentState(self.index).configuration.direction]
         if action == rev: features['reverse'] = 1
 
-        features['eatingRate'] = DNUM
-        if successor.getAgentState(self.getOpponents(gameState)[0]).isPacman or successor.getAgentState(
-                self.getOpponents(gameState)[1]).isPacman:
-            foodMissing = list(set(DEFENDING).difference(foodDefend))
-            if len(foodMissing) == 1:
-                foodMissing = foodMissing[0]
-                # print foodMissing
-                features['eatingRate'] = self.getMazeDistance(myPos, foodMissing)
-            global DEFENDING
-            DEFENDING = foodDefend
-            global DNUM
-            DNUM = features['eatingRate']
-        # print features['eatingRate']
-        if len(foodDefend) > 0:  # This should always be True, but better safe than sorry
-            minDistance = min([self.getMazeDistance(myPos, food) for food in foodDefend])
-            features['distanceToFood'] = minDistance
-
-        if len(pelletsYouaredefending) > 0:
-            minDistance = min([self.getMazeDistance(myPos, pelet) for pelet in pelletsYouaredefending])
-            features['distanceTopower'] = minDistance
-        features['dist2middle'] = util.manhattanDistance(gameState.getAgentState(self.index).getPosition(), (16, 16))
-        if successor.getAgentState(self.index).scaredTimer:
-            features['isScared'] = 10
-            features['onDefense'] = 0
         return features
 
     def getWeights(self, gameState, action):
-        return {'numInvaders': -100, 'onDefense': 10, 'invaderDistance': -100, 'stop': -100, 'reverse': -2,
-                'eatingRate': -1000, 'distanceToFood': -0.00001, 'distanceTopower': +0.000001,
-                'isScared': -100}
+        return {'numInvaders': -1000, 'onDefense': 100, 'invaderDistance': -10, 'stop': -100, 'reverse': -2}
 
     def attackQvalue(self, gameState, action):
         features = self.getFeatures(gameState, action)
@@ -1112,7 +1133,6 @@ class DefensiveAstar(ReflexCaptureAgentAstar):
                     self.getOpponents(state)[1]).isPacman:
                 foodMissing = list(set(DEFENDING).difference(foodDefend))
                 global latestFoodMissing
-                # print('Food Missing:', foodMissing)
                 hasFooodBeenEatenLastime = (len(foodDefend) != len(self.getFoodYouAreDefending(prev_state).asList()))
                 # print('HasFoodBeenEatenInLastTurn: - - - - -', hasFooodBeenEatenLastime)
                 if foodMissing:
@@ -1121,6 +1141,9 @@ class DefensiveAstar(ReflexCaptureAgentAstar):
                 else:
                     # print('Else Condition: FM:', foodMissing)
                     foodMissing = [latestFoodMissing]
+
+        global DEFENDING
+        DEFENDING = foodDefend
 
         self.DefenceHistory.append(state)
 
@@ -1166,15 +1189,27 @@ class DefensiveAstar(ReflexCaptureAgentAstar):
 
         anyEnemy = [state.getAgentState(i).isPacman for i in enemyIndices]
 
+
         if anyEnemy[0] or anyEnemy[1]:
-            goalPositions = set(foodMissing).union(set(attackablePacmen))
+
+            # if enemy is pacmen and observable attack him
+            if attackablePacmen:
+                goalPositions = set(attackablePacmen)
+            # else go to last food location
+            else:
+                #print foodMissing
+                goalPositions = set(foodMissing)
 
         else:
+            #print foodMissing
             goalPositions = set(foodMissing).union(set(self.defensiveEntry))
 
         avoidPositions = []
 
+        # print goalPositions
         if goalPositions:
+
+            # print goalPositions
             astar_path = self.aStarSearch(state.getAgentPosition(self.index), state, goalPositions)
 
         else:
@@ -1183,7 +1218,9 @@ class DefensiveAstar(ReflexCaptureAgentAstar):
         # THIS LOOP BELOW FOR IF GOING BACK IS AN ISSUE IF NO CAPUSLES
         if astar_path:
             action_astar = astar_path[0]
+            # print 'Iam GOING ASTAR WAY BITCH'
         else:
+            # print 'I AM TAKING RANDM SHIT'
             action_astar = self.computeActionFromQValues(state)
 
         actionToBeExecuted = None
