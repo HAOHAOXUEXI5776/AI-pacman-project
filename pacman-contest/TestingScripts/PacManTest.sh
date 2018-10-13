@@ -1,7 +1,7 @@
 #@IgnoreInspection BashAddShebang
 # Specify path to the directory containing the capture.py and myTeam files
 PATHPACMAN='/Users/k/PycharmProjects/comp90054-pacman/pacman-contest'
-RED='MDPV2'
+RED='MDP.v2'
 echo "DATA" > output.log
 for t in leeroy mcts Hybrid baselineTeam
 do
