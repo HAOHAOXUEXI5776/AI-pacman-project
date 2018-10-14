@@ -51,9 +51,10 @@ DEFENDING = []
 DNUM = 0
 nearestEnemyLocation = None
 entryPoints = []
-latestFoodMissing = (16, 6)
+latestFoodMissing = None
 MODE = 'normal'
 DEPTH = 4
+
 
 ###########################################
 
@@ -65,7 +66,8 @@ class ValueIterationAgent():
         for a given number of iterations using the supplied
         discount factor.
     """
-    def __init__(self, mdp, discount = 0.7, iterations = 100):
+
+    def __init__(self, mdp, discount=0.7, iterations=100):
         """
           Your value iteration agent should take an mdp on
           construction, run the indicated number of iterations
@@ -81,7 +83,7 @@ class ValueIterationAgent():
         self.mdp = mdp
         self.discount = discount
         self.iterations = iterations
-        self.values = util.Counter() # A Counter is a dict with default 0
+        self.values = util.Counter()  # A Counter is a dict with default 0
 
         # Write value iteration code here
         for i in range(0, iterations):
@@ -93,27 +95,24 @@ class ValueIterationAgent():
 
             self.values = iteration_values.copy()
 
-
     def getValue(self, state):
         """
           Return the value of the state (computed in __init__).
         """
         return self.values[state]
 
-
     def computeQValueFromValues(self, state, action):
         """
           Compute the Q-value of action in state from the
           value function stored in self.values.
         """
-        #print(state, action)
+        # print(state, action)
         qvalue = 0
         for next_state, prob in self.mdp.getTransitionStatesAndProbs(state, action):
             reward = self.mdp.getReward(state, action, next_state)
-            #print prob, reward, self.discount
+            # print prob, reward, self.discount
             qvalue += prob * (reward + self.discount * self.values[next_state])
         return qvalue
-
 
     def computeActionFromValues(self, state):
         """
@@ -127,11 +126,10 @@ class ValueIterationAgent():
         action_values = util.Counter()
         for action in self.mdp.getPossibleActions(state):
             action_values[action] = self.computeQValueFromValues(state, action)
-            #next_state, _ = self.mdp.getTransitionStatesAndProbs(state, action)[0]
-            #action_values[action] = self.values[next_state]
-            #print state, next_state, self.values[next_state]
+            # next_state, _ = self.mdp.getTransitionStatesAndProbs(state, action)[0]
+            # action_values[action] = self.values[next_state]
+            # print state, next_state, self.values[next_state]
         return action_values.argMax()
-
 
     def getPolicy(self, state):
         return self.computeActionFromValues(state)
@@ -140,16 +138,15 @@ class ValueIterationAgent():
         "Returns the policy at the state (no exploration)."
         return self.computeActionFromValues(state)
 
-
     def getQValue(self, state, action):
         return self.computeQValueFromValues(state, action)
-
 
     def print_state(self):
         for state in self.values.keys():
             qvalue = self.values[state]
             reward = self.mdp.getReward(state, '', state)
-            print 'state/qvalue/reward', state, qvalue, reward
+            print
+            'state/qvalue/reward', state, qvalue, reward
 
 
 class PacmanMDP():
@@ -160,15 +157,15 @@ class PacmanMDP():
         legalMoves = util.Counter()
         for state in states:
             x, y = state
-            #legalMoves[(state, Directions.STOP)] = state
-            if (x-1, y) in states:
-                legalMoves[(state, Directions.WEST)] = (x-1, y)
-            if (x+1, y) in states:
-                legalMoves[(state, Directions.EAST)] = (x+1, y)
-            if (x, y-1) in states:
-                legalMoves[(state, Directions.SOUTH)] = (x, y-1)
-            if (x, y+1) in states:
-                legalMoves[(state, Directions.NORTH)] = (x, y+1)
+            # legalMoves[(state, Directions.STOP)] = state
+            if (x - 1, y) in states:
+                legalMoves[(state, Directions.WEST)] = (x - 1, y)
+            if (x + 1, y) in states:
+                legalMoves[(state, Directions.EAST)] = (x + 1, y)
+            if (x, y - 1) in states:
+                legalMoves[(state, Directions.SOUTH)] = (x, y - 1)
+            if (x, y + 1) in states:
+                legalMoves[(state, Directions.NORTH)] = (x, y + 1)
         self._possibleActions = legalMoves
         self._rewards = util.Counter()
 
@@ -190,7 +187,6 @@ class PacmanMDP():
         print "Possible Actions", self._possibleActions
     '''
 
-
     def getStates(self):
         """
         Return a list of all states in the MDP.
@@ -209,7 +205,6 @@ class PacmanMDP():
         Return list of possible actions from 'state'.
         """
         return [item[1] for item in self._possibleActions.keys() if item[0] == state]
-
 
     def getTransitionStatesAndProbs(self, state, action):
         """
@@ -234,7 +229,6 @@ class PacmanMDP():
             return -10.
         return min(self._rewards[state], self._rewards[nextState])
 
-
     def isTerminal(self, state):
         """
         Returns true if the current state is a terminal state.  By convention,
@@ -245,27 +239,29 @@ class PacmanMDP():
         """
         return False
 
+
 #################
 # Team creation #
 #################
 
 def createTeam(firstIndex, secondIndex, isRed,
-               first = 'OffensiveReflexAgent', second = 'DefensiveAstar'):
-  """
-  This function should return a list of two agents that will form the
-  team, initialized using firstIndex and secondIndex as their agent
-  index numbers.  isRed is True if the red team is being created, and
-  will be False if the blue team is being created.
+               first='OffensiveReflexAgent', second='DefensiveAstar'):
+    """
+    This function should return a list of two agents that will form the
+    team, initialized using firstIndex and secondIndex as their agent
+    index numbers.  isRed is True if the red team is being created, and
+    will be False if the blue team is being created.
 
-  As a potentially helpful development aid, this function can take
-  additional string-valued keyword arguments ("first" and "second" are
-  such arguments in the case of this function), which will come from
-  the --redOpts and --blueOpts command-line arguments to capture.py.
-  For the nightly contest, however, your team will be created without
-  any extra arguments, so you should make sure that the default
-  behavior is what you want for the nightly contest.
-  """
-  return [eval(first)(firstIndex), eval(second)(secondIndex)]
+    As a potentially helpful development aid, this function can take
+    additional string-valued keyword arguments ("first" and "second" are
+    such arguments in the case of this function), which will come from
+    the --redOpts and --blueOpts command-line arguments to capture.py.
+    For the nightly contest, however, your team will be created without
+    any extra arguments, so you should make sure that the default
+    behavior is what you want for the nightly contest.
+    """
+    return [eval(first)(firstIndex), eval(second)(secondIndex)]
+
 
 ##########
 # Agents #
@@ -273,339 +269,334 @@ def createTeam(firstIndex, secondIndex, isRed,
 
 
 class ReflexCaptureAgent(CaptureAgent):
-  """
-  A base class for reflex agents that chooses score-maximizing actions
-  """
-  def _getGrid(self, x_min, y_min, x_max, y_max):
-      x_min = int(max(1, x_min))
-      x_max = int(min(self._maxx, x_max))
-      y_min = int(max(1, y_min))
-      y_max = int(min(self._maxy, y_max))
-
-      all_cells = set()
-      for x in range(x_min, x_max + 1):
-          for y in range(y_min, y_max + 1):
-              all_cells.add((x, y))
-      return all_cells.difference(self.walls)
-
-
-  def getDistanceHome(self, pos):
-      x, _ = pos
-      #print self.sign, x, self.homeBoundaryCells
-      if (self.homeBoundaryCells[0][0] - x) * self.sign > 0:
-          return 0
-      distances = [self.distancer.getDistance(pos, cell) for cell in self.homeBoundaryCells]
-      return min(distances)
- 
-  def registerInitialState(self, gameState):
-    self.start = gameState.getAgentPosition(self.index)
-    CaptureAgent.registerInitialState(self, gameState)
-    self.warnings = 0
-
-    # Enemy and teammate indices
-    self.enemy_indices = self.getOpponents(gameState)
-    team_indices = self.getTeam(gameState)
-    team_indices.remove(self.index)
-    self.teammate_index = team_indices[0]
-
-    # Analysing layout
-    self.walls = set(gameState.data.layout.walls.asList())
-    self._maxx = max([item[0] for item in self.walls])
-    self._maxy = max([item[1] for item in self.walls])
-    self.sign = 1 if gameState.isOnRedTeam(self.index) else -1
-
-    # Determining home boundary
-    self.homeXBoundary = self.start[0] + ((self._maxx // 2 - 1) * self.sign)
-    cells = [(self.homeXBoundary, y) for y in range(1, self._maxy)]
-    self.homeBoundaryCells = [item for item in cells if item not in self.walls]
-
-    # Determining legal actions count for all cells
-    valid_cells = self._getGrid(1, 1, self._maxx, self._maxy)
-    self._legalActions = util.Counter()
-    for cell in valid_cells:
-        x, y = cell
-        if (x - 1, y) in valid_cells:
-            self._legalActions[cell] += 1
-        if (x + 1, y) in valid_cells:
-            self._legalActions[cell] += 1
-        if (x, y - 1) in valid_cells:
-            self._legalActions[cell] += 1
-        if (x, y + 1) in valid_cells:
-            self._legalActions[cell] += 1
-
-    '''
-    print "Home boundary cells: ", self.homeBoundaryCells
-
-
-    print "Walls:", self.walls
-    # Agent info
-    enemy_capsules = self.getCapsules(gameState)
-    print "Enemy's Capsules: ", enemy_capsules
-    print "Enemy's indices:", self.enemy_indices
-    print "Enemy's food:", self.getFood(gameState).asList()
-
-    print "Start Position", self.start
-    print "Our indices", team_indices
-    print "Our Capsules:", self.getCapsulesYouAreDefending(gameState)
-    print "Our Food:", self.getFoodYouAreDefending(gameState).asList()
-    '''
-
-  def isHomeArena(self, cell):
-      x, _ = cell
-      x1 = self.start[0]
-      x2 = self.homeXBoundary
-      return x1 <= x <= x2 or x2 <= x <= x1
-
-  def assignRewards(self, grid, mdp, rewardShape, myPos, targetPos):
-      rewards = []
-      distanceToTarget = self.distancer.getDistance(targetPos, myPos)
-      for cell in grid:
-          distance = self.distancer.getDistance(cell, targetPos)
-          if distance <= distanceToTarget:
-              reward = rewardShape / max(float(distance), .5)
-              maxNoise = reward / 5.
-              reward += random.uniform(-maxNoise, maxNoise)
-              mdp.addReward(cell, reward)
-              rewards.append((myPos, cell, distance, reward))
-      return rewards
-
-  def chooseAction(self, gameState):
     """
-    Picks among the actions with the highest Q(s,a).
+    A base class for reflex agents that chooses score-maximizing actions
     """
-    start = time.time()
 
-    vicinity = 6
-    goHomeReward = 1
-    foodRwdShape = 0.1
+    def _getGrid(self, x_min, y_min, x_max, y_max):
+        x_min = int(max(1, x_min))
+        x_max = int(min(self._maxx, x_max))
+        y_min = int(max(1, y_min))
+        y_max = int(min(self._maxy, y_max))
 
-    trapRwdShape = -0.1
-    ghostAttackRwdShape = -1.5
-    ppRwdShape = 1
+        all_cells = set()
+        for x in range(x_min, x_max + 1):
+            for y in range(y_min, y_max + 1):
+                all_cells.add((x, y))
+        return all_cells.difference(self.walls)
 
-    myState = gameState.getAgentState(self.index)
-    myPos = myState.getPosition()
-    distance_home = self.getDistanceHome(myPos)
-    x, y = myPos
-    #myPos = (int(x), int(y))
+    def getDistanceHome(self, pos):
+        x, _ = pos
+        # print self.sign, x, self.homeBoundaryCells
+        if (self.homeBoundaryCells[0][0] - x) * self.sign > 0:
+            return 0
+        distances = [self.distancer.getDistance(pos, cell) for cell in self.homeBoundaryCells]
+        return min(distances)
 
-    teammateState = gameState.getAgentState(self.teammate_index)
-    teammatePos = teammateState.getPosition()
+    def registerInitialState(self, gameState):
+        self.start = gameState.getAgentPosition(self.index)
+        CaptureAgent.registerInitialState(self, gameState)
+        self.warnings = 0
 
-    # Generate GRID
-    grid = self._getGrid(x - vicinity, y - vicinity, x + vicinity, y + vicinity)
-    grid = {cell for cell in grid if self.distancer.getDistance(myPos, cell) <= vicinity}
-    mdp = PacmanMDP(myPos, grid)
+        # Enemy and teammate indices
+        self.enemy_indices = self.getOpponents(gameState)
+        team_indices = self.getTeam(gameState)
+        team_indices.remove(self.index)
+        self.teammate_index = team_indices[0]
 
+        # Analysing layout
+        self.walls = set(gameState.data.layout.walls.asList())
+        self._maxx = max([item[0] for item in self.walls])
+        self._maxy = max([item[1] for item in self.walls])
+        self.sign = 1 if gameState.isOnRedTeam(self.index) else -1
 
-    # Positive rewards for food
-    foodPositions = self.getFood(gameState).asList()
-    foodLeft = len(foodPositions)
-    if foodLeft > 2:
-        for foodPos in foodPositions:
-            self.assignRewards(grid, mdp, rewardShape=foodRwdShape, myPos=myPos,
-                targetPos=foodPos)
+        # Determining home boundary
+        self.homeXBoundary = self.start[0] + ((self._maxx // 2 - 1) * self.sign)
+        cells = [(self.homeXBoundary, y) for y in range(1, self._maxy)]
+        self.homeBoundaryCells = [item for item in cells if item not in self.walls]
 
+        # Determining legal actions count for all cells
+        valid_cells = self._getGrid(1, 1, self._maxx, self._maxy)
+        self._legalActions = util.Counter()
+        for cell in valid_cells:
+            x, y = cell
+            if (x - 1, y) in valid_cells:
+                self._legalActions[cell] += 1
+            if (x + 1, y) in valid_cells:
+                self._legalActions[cell] += 1
+            if (x, y - 1) in valid_cells:
+                self._legalActions[cell] += 1
+            if (x, y + 1) in valid_cells:
+                self._legalActions[cell] += 1
 
-    # Rewards for ghosts in vicinity
-    enemyNearby = False
-    enemies = []
-    for idx in self.getOpponents(gameState):
-        enemyState = gameState.getAgentState(idx)
-        enemyPos = enemyState.getPosition()
+        '''
+        print "Home boundary cells: ", self.homeBoundaryCells
+    
+    
+        print "Walls:", self.walls
+        # Agent info
+        enemy_capsules = self.getCapsules(gameState)
+        print "Enemy's Capsules: ", enemy_capsules
+        print "Enemy's indices:", self.enemy_indices
+        print "Enemy's food:", self.getFood(gameState).asList()
+    
+        print "Start Position", self.start
+        print "Our indices", team_indices
+        print "Our Capsules:", self.getCapsulesYouAreDefending(gameState)
+        print "Our Food:", self.getFoodYouAreDefending(gameState).asList()
+        '''
 
-        if enemyPos:
-            enemy_distance = self.distancer.getDistance(myPos, enemyPos)
-            if enemy_distance <= 5:
-                enemyNearby = True
-                enemies.append((enemyState, enemyPos))
+    def isHomeArena(self, cell):
+        x, _ = cell
+        x1 = self.start[0]
+        x2 = self.homeXBoundary
+        return x1 <= x <= x2 or x2 <= x <= x1
 
-    if enemyNearby:
-        # No rewards if enemy on our territory
-        if enemyState.isPacman:
-            pass
-
-        # Negative reward for enemy's positions nearby
-        enemyMinDistance = 5
-        enemyScaredTimer = min([item.scaredTimer for item, _ in enemies])
-        for enemyState, enemyPos in enemies:
-            if enemyState.scaredTimer > 2:
-                continue
-            enemy_distance = self.distancer.getDistance(myPos, enemyPos)
-            reward = ghostAttackRwdShape * foodLeft * (vicinity - enemy_distance + 1.)
-            #print "Reward for enemy nearby, EnemyPos / distance / reward", enemyPos, enemy_distance, reward
-            mdp.addRewardWithNeighbours(enemyPos, reward)
-            enemyMinDistance = min(enemyMinDistance, enemy_distance)
-
-
+    def assignRewards(self, grid, mdp, rewardShape, myPos, targetPos):
+        rewards = []
+        distanceToTarget = self.distancer.getDistance(targetPos, myPos)
         for cell in grid:
-            # No rewards for cells in home arena
-            if self.isHomeArena(cell) or enemyScaredTimer > 9:
-                continue
-
-            # Negative reward for going in trapping positions
-            cell_to_home_distance = self.getDistanceHome(cell)
-            #print "Distance home / cell distance home", distance_home, cell_to_home_distance
-            enemyDistCoef = float(6 - enemyMinDistance) / 2.
-            if cell_to_home_distance > distance_home:
-                reward = float(cell_to_home_distance - distance_home) * trapRwdShape * enemyDistCoef
+            distance = self.distancer.getDistance(cell, targetPos)
+            if distance <= distanceToTarget:
+                reward = rewardShape / max(float(distance), .5)
+                maxNoise = reward / 5.
+                reward += random.uniform(-maxNoise, maxNoise)
                 mdp.addReward(cell, reward)
+                rewards.append((myPos, cell, distance, reward))
+        return rewards
 
-            # Negative rewards for going in cells with 1 legal action
-            legalActions = self._legalActions[cell]
-            if legalActions == 1:
-                reward = float(trapRwdShape * enemyDistCoef * 2)
-                mdp.addRewardWithNeighbours(cell, reward)
-            if legalActions == 2 and enemyMinDistance <=3:
-                mdp.addRewardWithNeighbours(cell, trapRwdShape)
+    def chooseAction(self, gameState):
+        """
+        Picks among the actions with the highest Q(s,a).
+        """
+        start = time.time()
 
-            # Positive reward for going towards Power pellets
-            for pelletPos in self.getCapsules(gameState):
-                self.assignRewards(grid, mdp, rewardShape=ppRwdShape,
-                    myPos=myPos, targetPos=pelletPos)
+        vicinity = 7
+        goHomeReward = 1
+        foodRwdShape = 0.14
 
-            # Positive rewards for bringing food home
-            foodCarriyng = min(myState.numCarrying, 10)
-            rewardShape = goHomeReward * max(foodCarriyng - 1, 0) / 10
-            self.assignGoHomeRewards(grid, mdp, rewardShape, myPos)
+        trapRwdShape = -0.1
+        ghostAttackRwdShape = -1.5
+        ppRwdShape = 1
 
+        myState = gameState.getAgentState(self.index)
+        myPos = myState.getPosition()
+        distance_home = self.getDistanceHome(myPos)
+        x, y = myPos
+        # myPos = (int(x), int(y))
 
-    # Rewards for going home when we carry enough food or game is close to an end
-    timeLeft = gameState.data.timeleft // 4
-    goingHome = (foodLeft <= 2) or (timeLeft < 40)
-    if goingHome:
-        self.assignGoHomeRewards(grid, mdp, goHomeReward, myPos)
-        #print "Food/time left", foodLeft, timeLeft
-        #for targetCell in self.homeBoundaryCells:
-        #    rewards = self.assignRewards(grid, mdp, rewardShape=goHomeReward, myPos=myPos, targetPos=targetCell)
-        #print 'MiddlePos/myPos/Rewards', targetCell, myPos, rewards
+        teammateState = gameState.getAgentState(self.teammate_index)
+        teammatePos = teammateState.getPosition()
 
+        # Generate GRID
+        grid = self._getGrid(x - vicinity, y - vicinity, x + vicinity, y + vicinity)
+        grid = {cell for cell in grid if self.distancer.getDistance(myPos, cell) <= vicinity}
+        mdp = PacmanMDP(myPos, grid)
 
-    # Rewards to be close to teammate pacman
+        # Positive rewards for food
+        foodPositions = self.getFood(gameState).asList()
+        foodLeft = len(foodPositions)
+        if foodLeft > 2:
+            for foodPos in foodPositions:
+                self.assignRewards(grid, mdp, rewardShape=foodRwdShape, myPos=myPos,
+                                   targetPos=foodPos)
 
-    rewardShape = 250. / (250 + self.distancer.getDistance(myPos, self.start)) - 1
-    #print rewardShape
-    self.assignRewards(grid, mdp, rewardShape=rewardShape, myPos=myPos, targetPos=teammatePos)
-    mdp.addRewardWithNeighbours(teammatePos, rewardShape)
+        # Rewards for ghosts in vicinity
+        enemyNearby = False
+        enemies = []
+        for idx in self.getOpponents(gameState):
+            enemyState = gameState.getAgentState(idx)
+            enemyPos = enemyState.getPosition()
 
-    #reward = -1 / max(1, self.distancer.getDistance(myPos, teammatePos))
-    #mdp.addRewardWithNeighbours(teammatePos, reward)
+            if enemyPos:
+                enemy_distance = self.distancer.getDistance(myPos, enemyPos)
+                if enemy_distance <= 5:
+                    enemyNearby = True
+                    enemies.append((enemyState, enemyPos))
 
+        if enemyNearby:
+            # No rewards if enemy on our territory
+            if enemyState.isPacman:
+                pass
 
-    evaluator = ValueIterationAgent(mdp, discount=0.8, iterations=100)
-    #if pacmanIsUnderTheThreat:
-    #    evaluator.print_state()
+            # Negative reward for enemy's positions nearby
+            enemyMinDistance = 5
+            enemyScaredTimer = min([item.scaredTimer for item, _ in enemies])
+            for enemyState, enemyPos in enemies:
+                if enemyState.scaredTimer > 2:
+                    continue
+                enemy_distance = self.distancer.getDistance(myPos, enemyPos)
+                reward = ghostAttackRwdShape * foodLeft * (vicinity - enemy_distance + 1.)
+                # print "Reward for enemy nearby, EnemyPos / distance / reward", enemyPos, enemy_distance, reward
+                mdp.addRewardWithNeighbours(enemyPos, reward)
+                enemyMinDistance = min(enemyMinDistance, enemy_distance)
 
-    bestAction = evaluator.getAction(myPos)
+            for cell in grid:
+                # No rewards for cells in home arena
+                if self.isHomeArena(cell) or enemyScaredTimer > 9:
+                    continue
 
-    timeElapsed = time.time() - start
-    if timeElapsed > 0.5:
-        self.warnings += 1
-    if goingHome:
-        #print "myPos/myIndex/chosenAction/timeConsumed", myPos, self.index, bestAction, time.time() - start
-        #evaluator.print_state()
-        pass
-    #print 'eval time for agent %d: %.4f' % (self.index, time.time() - start)
+                # Negative reward for going in trapping positions
+                cell_to_home_distance = self.getDistanceHome(cell)
+                # print "Distance home / cell distance home", distance_home, cell_to_home_distance
+                enemyDistCoef = float(6 - enemyMinDistance) / 2.
+                if cell_to_home_distance > distance_home:
+                    reward = float(cell_to_home_distance - distance_home) * trapRwdShape * enemyDistCoef
+                    mdp.addReward(cell, reward)
 
-    return bestAction
+                # Negative rewards for going in cells with 1 legal action
+                legalActions = self._legalActions[cell]
+                if legalActions == 1:
+                    reward = float(trapRwdShape * enemyDistCoef * 2)
+                    mdp.addRewardWithNeighbours(cell, reward)
+                if legalActions == 2 and enemyMinDistance <= 3:
+                    mdp.addRewardWithNeighbours(cell, trapRwdShape)
 
+                # Positive reward for going towards Power pellets
+                for pelletPos in self.getCapsules(gameState):
+                    self.assignRewards(grid, mdp, rewardShape=ppRwdShape,
+                                       myPos=myPos, targetPos=pelletPos)
 
-  def final(self, gameState):
-      #print "Warnings count:", self.warnings
-      CaptureAgent.final(self, gameState)
+                # Positive rewards for bringing food home
+                foodCarriyng = min(myState.numCarrying, 10)
+                rewardShape = goHomeReward * max(foodCarriyng - 1, 0) / 10
+                self.assignGoHomeRewards(grid, mdp, rewardShape, myPos)
 
-  def assignGoHomeRewards(self, grid, mdp, rewardShape, myPos):
-      for targetCell in self.homeBoundaryCells:
-          rewards = self.assignRewards(grid, mdp, rewardShape=rewardShape, myPos=myPos, targetPos=targetCell)
-      return rewards
+        # Rewards for going home when we carry enough food or game is close to an end
+        timeLeft = gameState.data.timeleft // 4
+        goingHome = (foodLeft <= 2) or (timeLeft < 40)
+        if goingHome:
+            self.assignGoHomeRewards(grid, mdp, goHomeReward, myPos)
+            # print "Food/time left", foodLeft, timeLeft
+            # for targetCell in self.homeBoundaryCells:
+            #    rewards = self.assignRewards(grid, mdp, rewardShape=goHomeReward, myPos=myPos, targetPos=targetCell)
+            # print 'MiddlePos/myPos/Rewards', targetCell, myPos, rewards
 
-  '''
-  def printLegalActions(self, gameState, agent_idx):
-      state = gameState.getAgentState(agent_idx)
+        # Rewards to be close to teammate pacman
 
-      print "My index: ", agent_idx
-      print "My position:", state.getPosition()
-      print "ScaredTimer / NumCarrying / NumReturned", state.scaredTimer, state.numCarrying, state.numReturned, \
-          state.isPacman, state.start
+        rewardShape = 250. / (250 + self.distancer.getDistance(myPos, self.start)) - 1
+        # print rewardShape
+        self.assignRewards(grid, mdp, rewardShape=rewardShape, myPos=myPos, targetPos=teammatePos)
+        mdp.addRewardWithNeighbours(teammatePos, rewardShape)
 
-      try:
-          legal_actions = gameState.getLegalActions(agent_idx)
-          print 'legal actions:', legal_actions
-          for action in legal_actions:
-              try:
-                  successor = self.getSuccessor(gameState, action)
-                  succ_state = successor.getAgentState(agent_idx)
-                  print "Position after the action", action, succ_state.getPosition(), succ_state.getDirection(), \
-                      succ_state.scaredTimer, succ_state.numCarrying, succ_state.numReturned
-              except Exception:
-                  pass
-      except AttributeError:
-          pass
-  '''
+        # reward = -1 / max(1, self.distancer.getDistance(myPos, teammatePos))
+        # mdp.addRewardWithNeighbours(teammatePos, reward)
 
-  def getSuccessor(self, gameState, action):
-    """
-    Finds the next successor which is a grid position (location tuple).
-    """
-    successor = gameState.generateSuccessor(self.index, action)
-    pos = successor.getAgentState(self.index).getPosition()
-    if pos != nearestPoint(pos):
-      # Only half a grid position was covered
-      return successor.generateSuccessor(self.index, action)
-    else:
-      return successor
+        evaluator = ValueIterationAgent(mdp, discount=0.8, iterations=100)
+        # if pacmanIsUnderTheThreat:
+        #    evaluator.print_state()
 
-  def evaluate(self, gameState, action):
-    """
-    Computes a linear combination of features and feature weights
-    """
-    features = self.getFeatures(gameState, action)
-    weights = self.getWeights(gameState, action)
-    return features * weights
+        bestAction = evaluator.getAction(myPos)
 
-  def getFeatures(self, gameState, action):
-    """
-    Returns a counter of features for the state
-    """
-    features = util.Counter()
-    successor = self.getSuccessor(gameState, action)
-    features['successorScore'] = self.getScore(successor)
-    return features
+        timeElapsed = time.time() - start
+        if timeElapsed > 0.5:
+            self.warnings += 1
+        if goingHome:
+            # print "myPos/myIndex/chosenAction/timeConsumed", myPos, self.index, bestAction, time.time() - start
+            # evaluator.print_state()
+            pass
+        # print 'eval time for agent %d: %.4f' % (self.index, time.time() - start)
 
-  def getWeights(self, gameState, action):
-    """
-    Normally, weights do not depend on the gamestate.  They can be either
-    a counter or a dictionary.
-    """
-    return {'successorScore': 1.0}
+        return bestAction
+
+    def final(self, gameState):
+        # print "Warnings count:", self.warnings
+        CaptureAgent.final(self, gameState)
+
+    def assignGoHomeRewards(self, grid, mdp, rewardShape, myPos):
+        for targetCell in self.homeBoundaryCells:
+            rewards = self.assignRewards(grid, mdp, rewardShape=rewardShape, myPos=myPos, targetPos=targetCell)
+        return rewards
+
+    '''
+    def printLegalActions(self, gameState, agent_idx):
+        state = gameState.getAgentState(agent_idx)
+  
+        print "My index: ", agent_idx
+        print "My position:", state.getPosition()
+        print "ScaredTimer / NumCarrying / NumReturned", state.scaredTimer, state.numCarrying, state.numReturned, \
+            state.isPacman, state.start
+  
+        try:
+            legal_actions = gameState.getLegalActions(agent_idx)
+            print 'legal actions:', legal_actions
+            for action in legal_actions:
+                try:
+                    successor = self.getSuccessor(gameState, action)
+                    succ_state = successor.getAgentState(agent_idx)
+                    print "Position after the action", action, succ_state.getPosition(), succ_state.getDirection(), \
+                        succ_state.scaredTimer, succ_state.numCarrying, succ_state.numReturned
+                except Exception:
+                    pass
+        except AttributeError:
+            pass
+    '''
+
+    def getSuccessor(self, gameState, action):
+        """
+        Finds the next successor which is a grid position (location tuple).
+        """
+        successor = gameState.generateSuccessor(self.index, action)
+        pos = successor.getAgentState(self.index).getPosition()
+        if pos != nearestPoint(pos):
+            # Only half a grid position was covered
+            return successor.generateSuccessor(self.index, action)
+        else:
+            return successor
+
+    def evaluate(self, gameState, action):
+        """
+        Computes a linear combination of features and feature weights
+        """
+        features = self.getFeatures(gameState, action)
+        weights = self.getWeights(gameState, action)
+        return features * weights
+
+    def getFeatures(self, gameState, action):
+        """
+        Returns a counter of features for the state
+        """
+        features = util.Counter()
+        successor = self.getSuccessor(gameState, action)
+        features['successorScore'] = self.getScore(successor)
+        return features
+
+    def getWeights(self, gameState, action):
+        """
+        Normally, weights do not depend on the gamestate.  They can be either
+        a counter or a dictionary.
+        """
+        return {'successorScore': 1.0}
+
 
 class OffensiveReflexAgent(ReflexCaptureAgent):
-  """
-  A reflex agent that seeks food. This is an agent
-  we give you to get an idea of what an offensive agent might look like,
-  but it is by no means the best or only way to build an offensive agent.
-  """
-  def getFeatures(self, gameState, action):
-    features = util.Counter()
-    return features
+    """
+    A reflex agent that seeks food. This is an agent
+    we give you to get an idea of what an offensive agent might look like,
+    but it is by no means the best or only way to build an offensive agent.
+    """
 
-  def getWeights(self, gameState, action):
-    return {'successorScore': 100, 'distanceToFood': -1}
+    def getFeatures(self, gameState, action):
+        features = util.Counter()
+        return features
+
+    def getWeights(self, gameState, action):
+        return {'successorScore': 100, 'distanceToFood': -1}
+
 
 class DefensiveReflexAgent(ReflexCaptureAgent):
-  """
-  A reflex agent that keeps its side Pacman-free. Again,
-  this is to give you an idea of what a defensive agent
-  could be like.  It is not the best or only way to make
-  such an agent.
-  """
+    """
+    A reflex agent that keeps its side Pacman-free. Again,
+    this is to give you an idea of what a defensive agent
+    could be like.  It is not the best or only way to make
+    such an agent.
+    """
 
-  def getFeatures(self, gameState, action):
-    return None
+    def getFeatures(self, gameState, action):
+        return None
 
-  def getWeights(self, gameState, action):
-    return {'numInvaders': -1000, 'onDefense': 100, 'invaderDistance': -10, 'stop': -100, 'reverse': -2}
-
+    def getWeights(self, gameState, action):
+        return {'numInvaders': -1000, 'onDefense': 100, 'invaderDistance': -10, 'stop': -100, 'reverse': -2}
 
 
 class ReflexCaptureAgentAstar(CaptureAgent):
@@ -676,21 +667,28 @@ class ReflexCaptureAgentAstar(CaptureAgent):
         if MODE == 'normal':
             self.defensiveEntry = min(coords, key=len)
         global latestFoodMissing
-        latestFoodMissing = random.choice(self.defensiveEntry)
+        latestFoodMissing = random.choice(self.getFoodYouAreDefending(gameState).asList())
         if DEBUG:
-            print 'DEFENSIVE********LOWER********'
+            print
+            'DEFENSIVE********LOWER********'
             i = 0
             for l in coordsLower:
-                print len(l), sorted(l), len(coords[i])
+                print
+                len(l), sorted(l), len(coords[i])
                 i += 1
-            print 'DEFENSIVE********LOWER********'
-            print '-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-'
-            print 'DEFENSIVE********UPPER********'
+            print
+            'DEFENSIVE********LOWER********'
+            print
+            '-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-'
+            print
+            'DEFENSIVE********UPPER********'
             i = 0
             for l in coordsUpper:
-                print len(l), sorted(l), len(coords[i])
+                print
+                len(l), sorted(l), len(coords[i])
                 i += 1
-            print 'DEFENSIVE********UPPER********'
+            print
+            'DEFENSIVE********UPPER********'
         #########################
         # OFFENSIVE ENTRY POINT #
         #########################
@@ -710,20 +708,28 @@ class ReflexCaptureAgentAstar(CaptureAgent):
         if MODE == 'normal':
             self.offensiveEntry = min(coords, key=len)
         if DEBUG:
-            print 'OFFENSIVE********LOWER********'
+            print
+            'OFFENSIVE********LOWER********'
             i = 0
             for l in coordsLower:
-                print len(l), sorted(l), len(coords[i])
+                print
+                len(l), sorted(l), len(coords[i])
                 i += 1
-            print 'OFFENSIVE********LOWER********'
-            print '-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-'
-            print 'OFFENSIVE********UPPER********'
+            print
+            'OFFENSIVE********LOWER********'
+            print
+            '-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-_-'
+            print
+            'OFFENSIVE********UPPER********'
             i = 0
             for l in coordsUpper:
-                print len(l), sorted(l), len(coords[i])
+                print
+                len(l), sorted(l), len(coords[i])
                 i += 1
-            print 'OFFENSIVE********UPPER********'
-            print 'END OF ITERATION'
+            print
+            'OFFENSIVE********UPPER********'
+            print
+            'END OF ITERATION'
         if self.index % 2 == 0:
             # Signifies we are the RED Team
             enemyStartState = gameState.getAgentState(1).getPosition()
@@ -945,7 +951,6 @@ class ReflexCaptureAgentAstar(CaptureAgent):
             updatedWeights[feature] = newWeight
         self.weights = updatedWeights
 
-
     def getSetOfMaximumValues(self, counterDictionary):
         return [key for key in counterDictionary.keys() if counterDictionary[key] == max(counterDictionary.values())]
 
@@ -1000,8 +1005,8 @@ class ReflexCaptureAgentAstar(CaptureAgent):
         queue = util.PriorityQueueWithFunction(lambda entry: entry[2] +  # Total cost so far
                                                              (100) * self.getMazeDistance(startPosition, entry[0]) if
         entry[0] in avoidPositions else 0 +  # Avoid enemy locations
-                                        np.min([self.getMazeDistance(entry[0], endPosition) for endPosition in
-                                            goalPositions]))
+                                        sum([self.getMazeDistance(entry[0], endPosition) for endPosition in
+                                                goalPositions]))
 
         # Keeps track of visited positions
         visited = set([currentPosition])
@@ -1128,7 +1133,6 @@ class DefensiveAstar(ReflexCaptureAgentAstar):
                     self.getOpponents(state)[1]).isPacman:
                 foodMissing = list(set(DEFENDING).difference(foodDefend))
                 global latestFoodMissing
-                # print('Food Missing:', foodMissing)
                 hasFooodBeenEatenLastime = (len(foodDefend) != len(self.getFoodYouAreDefending(prev_state).asList()))
                 # print('HasFoodBeenEatenInLastTurn: - - - - -', hasFooodBeenEatenLastime)
                 if foodMissing:
@@ -1137,6 +1141,9 @@ class DefensiveAstar(ReflexCaptureAgentAstar):
                 else:
                     # print('Else Condition: FM:', foodMissing)
                     foodMissing = [latestFoodMissing]
+
+        global DEFENDING
+        DEFENDING = foodDefend
 
         self.DefenceHistory.append(state)
 
@@ -1170,6 +1177,7 @@ class DefensiveAstar(ReflexCaptureAgentAstar):
         else:
             opponentWalls = [w for w in walls if w[0] < 17]
 
+        avoidPositions = []
         #######################
         # CHOOSE ACTION ASTAR #
         #######################
@@ -1179,6 +1187,9 @@ class DefensiveAstar(ReflexCaptureAgentAstar):
 
         attackablePacmen = [state.getAgentPosition(i) for i in enemyIndices if
                             self.isPacman(state, i) and self.isGhost(state, self.index)]
+
+        avoidPacmen = [state.getAgentPosition(i) for i in enemyIndices if
+                            self.isPacman(state, i) and self.isScared(state, self.index)]
 
         anyEnemy = [state.getAgentState(i).isPacman for i in enemyIndices]
 
@@ -1190,18 +1201,27 @@ class DefensiveAstar(ReflexCaptureAgentAstar):
                 goalPositions = set(attackablePacmen)
             # else go to last food location
             else:
+                #print foodMissing
                 goalPositions = set(foodMissing)
 
         else:
+            #print foodMissing
             goalPositions = set(foodMissing).union(set(self.defensiveEntry))
 
-        avoidPositions = []
 
-        #print goalPositions
+        if self.isScared(state, self.index) and (anyEnemy[0] or anyEnemy[1]):
+            goalPositions = set(foodMissing)
+            avoidPositions = set(avoidPacmen)
+
+
+
+        print goalPositions
+
+
         if goalPositions:
 
-            #print goalPositions
-            astar_path = self.aStarSearch(state.getAgentPosition(self.index), state, goalPositions)
+            # print goalPositions
+            astar_path = self.aStarSearch(state.getAgentPosition(self.index), state, goalPositions,avoidPositions)
 
         else:
             astar_path = None
@@ -1209,9 +1229,9 @@ class DefensiveAstar(ReflexCaptureAgentAstar):
         # THIS LOOP BELOW FOR IF GOING BACK IS AN ISSUE IF NO CAPUSLES
         if astar_path:
             action_astar = astar_path[0]
-            #print 'Iam GOING ASTAR WAY BITCH'
+            # print 'Iam GOING ASTAR WAY BITCH'
         else:
-            #print 'I AM TAKING RANDM SHIT'
+            # print 'I AM TAKING RANDM SHIT'
             action_astar = self.computeActionFromQValues(state)
 
         actionToBeExecuted = None

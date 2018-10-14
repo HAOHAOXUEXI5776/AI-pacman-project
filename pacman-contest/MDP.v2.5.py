@@ -335,15 +335,15 @@ class ReflexCaptureAgent(CaptureAgent):
 
     vicinity = 6
     niterations = 100
-    gamma = 0.9
+    gamma = 0.8
 
 
-    goHomeReward = 1.
-    foodRwdShape = 0.1
+    goHomeReward = 1
+    foodRwdShape = 0.12
 
     trapRwdShape = -0.1
-    ghostAttackingRwdShape = -3
-    ppRwdShape = 1.
+    ghostAttackRwdShape = -1.5
+    ppRwdShape = 1
 
     myState = gameState.getAgentState(self.index)
     myPos = myState.getPosition()
@@ -366,10 +366,8 @@ class ReflexCaptureAgent(CaptureAgent):
     foodLeft = len(foodPositions)
     if foodLeft > 2:
         distances = np.array([self.distancer.getDistance(myPos, foodPos) for foodPos in foodPositions])
-        nfood = 20
-        indices = np.argsort(distances)[:nfood]
+        indices = np.argsort(distances)[:8]
         closestFoodDist = distances[indices[0]]
-        #indices = [indices[0]] + list(np.random.choice(indices[1:], nfood - 4, replace=False))
 
         for i in indices:
             foodPos = foodPositions[i]
@@ -377,7 +375,7 @@ class ReflexCaptureAgent(CaptureAgent):
             for cell in grid:
                 distance = self.distancer.getDistance(cell, foodPos)
                 if distance <= distanceToTarget:
-                    discountFactor = np.exp(-(max(distance - closestFoodDist, 0)**0.5)/3)
+                    discountFactor = np.exp(-(max(distance - closestFoodDist, 0)**0.4)/5)
                     reward = foodRwdShape * discountFactor/ max(float(distance), .5)
                     maxNoise = reward / 5.
                     reward += random.uniform(-maxNoise, maxNoise)
@@ -387,7 +385,7 @@ class ReflexCaptureAgent(CaptureAgent):
                 targetPos=foodPos)
 
 
-    # Determinng if there is enemies nearby
+    # Rewards for ghosts in vicinity
     ghostNearby = False
     underThreat = False
     timeToThreat = 100
@@ -412,23 +410,24 @@ class ReflexCaptureAgent(CaptureAgent):
         if enemyState.isPacman:
             pass
 
-        # Positive rewards for bringing food home
-        foodCarriyng = min(myState.numCarrying, 10)
-        rewardShape = goHomeReward * foodCarriyng / 10
-        self.assignGoHomeRewards(grid, mdp, rewardShape, myPos)
-
         # Negative reward for enemy's positions nearby
         enemyMinDistance = 5
-        #enemyScaredTimer = min([item.scaredTimer for item, _ in enemies])
+        enemyScaredTimer = min([item.scaredTimer for item, _ in enemies])
         for enemyState, enemyPos in enemies:
             if enemyState.scaredTimer > 2:
                 continue
             if self.isHomeArena(enemyPos):
                 continue
             enemy_distance = self.distancer.getDistance(myPos, enemyPos)
-            reward = ghostAttackingRwdShape * (5. - enemy_distance + 1.)
+            reward = ghostAttackRwdShape * foodLeft * (vicinity - enemy_distance + 1.)
             mdp.addRewardWithNeighbours(enemyPos, reward)
             enemyMinDistance = min(enemyMinDistance, enemy_distance)
+
+
+        # Positive rewards for bringing food home
+        foodCarriyng = min(myState.numCarrying, 10)
+        rewardShape = goHomeReward * max(foodCarriyng - 1, 0) / 10
+        self.assignGoHomeRewards(grid, mdp, rewardShape, myPos)
 
 
         for cell in grid:
@@ -437,17 +436,12 @@ class ReflexCaptureAgent(CaptureAgent):
                 continue
 
             # Negative reward for going in trapping positions
-            cellToHomeDistance = self.getDistanceHome(cell)
-            enemyDistCoef = (6 - enemyMinDistance) / 2.
-            foodCoefficient = max(foodCarriyng, 1) / 5.
-            dist = max(cellToHomeDistance - distance_home, 0)
-            reward = dist * enemyDistCoef * trapRwdShape * foodCoefficient
-            mdp.addReward(cell, reward)
-
-            #print "Distance home / cell distance home / enemyDistance / Discoeff", \
-            #    distance_home, cellToHomeDistance, enemyMinDistance, enemyDistCoef, reward
-            #if cellToHomeDistance > distance_home:
-            #    mdp.addReward(cell, reward)
+            cell_to_home_distance = self.getDistanceHome(cell)
+            #print "Distance home / cell distance home", distance_home, cell_to_home_distance
+            enemyDistCoef = float(6 - enemyMinDistance) / 2.
+            if cell_to_home_distance > distance_home:
+                reward = float(cell_to_home_distance - distance_home) * trapRwdShape * enemyDistCoef
+                mdp.addReward(cell, reward)
 
             # Negative rewards for going in cells with 1 legal action
             legalActions = self._legalActions[cell]
@@ -468,16 +462,16 @@ class ReflexCaptureAgent(CaptureAgent):
                         myPos=myPos, targetPos=pelletPos)
 
 
+
+
+
     # Rewards for going home when we carry enough food or game is close to an end
     timeLeft = gameState.data.timeleft // 4
-    goingHome = (foodLeft <= 2) or (timeLeft < 40) or (timeLeft < (self.getDistanceHome(myPos) + 5))
+    goingHome = (foodLeft <= 2) or (timeLeft < 40)
     if goingHome:
         rewards = self.assignGoHomeRewards(grid, mdp, goHomeReward, myPos)
         #print "Food/time left", foodLeft, timeLeft
 
-    # Deposit food if we close to home
-    if myState.numCarrying > 5 and self.getDistanceHome(myPos) <= 3:
-        self.assignGoHomeRewards(grid, mdp, goHomeReward, myPos)
 
     # Negative rewards for visited positions recently
     visitsCounts = util.Counter()
