@@ -26,6 +26,7 @@ import random, time, util, sys
 from game import Directions
 import game
 from util import nearestPoint
+import numpy as np
 
 
 class ValueIterationAgent():
@@ -303,22 +304,9 @@ class ReflexCaptureAgent(CaptureAgent):
         if (x, y + 1) in valid_cells:
             self._legalActions[cell] += 1
 
-    '''
-    print "Home boundary cells: ", self.homeBoundaryCells
+    # Position history
+    self._positionsHistory = []
 
-
-    print "Walls:", self.walls
-    # Agent info
-    enemy_capsules = self.getCapsules(gameState)
-    print "Enemy's Capsules: ", enemy_capsules
-    print "Enemy's indices:", self.enemy_indices
-    print "Enemy's food:", self.getFood(gameState).asList()
-
-    print "Start Position", self.start
-    print "Our indices", team_indices
-    print "Our Capsules:", self.getCapsulesYouAreDefending(gameState)
-    print "Our Food:", self.getFoodYouAreDefending(gameState).asList()
-    '''
 
   def isHomeArena(self, cell):
       x, _ = cell
@@ -346,19 +334,24 @@ class ReflexCaptureAgent(CaptureAgent):
     start = time.time()
 
     vicinity = 6
-    goHomeReward = 1
+    niterations = 100
+    gamma = 0.9
+
+
+    goHomeReward = 1.
     foodRwdShape = 0.1
 
     trapRwdShape = -0.1
-    ghostAttackRwdShape = -1.5
-    ppRwdShape = 1
+    ghostAttackingRwdShape = -3
+    ppRwdShape = 1.
 
     myState = gameState.getAgentState(self.index)
     myPos = myState.getPosition()
+    self._positionsHistory.append(myPos)
     distance_home = self.getDistanceHome(myPos)
     x, y = myPos
-    #myPos = (int(x), int(y))
 
+    # Teammate
     teammateState = gameState.getAgentState(self.teammate_index)
     teammatePos = teammateState.getPosition()
 
@@ -372,100 +365,138 @@ class ReflexCaptureAgent(CaptureAgent):
     foodPositions = self.getFood(gameState).asList()
     foodLeft = len(foodPositions)
     if foodLeft > 2:
-        for foodPos in foodPositions:
+        distances = np.array([self.distancer.getDistance(myPos, foodPos) for foodPos in foodPositions])
+        #nfood = 20
+        indices = np.argsort(distances)#[:nfood]
+        closestFoodDist = distances[indices[0]]
+        #indices = [indices[0]] + list(np.random.choice(indices[1:], nfood - 4, replace=False))
+
+        for i in indices:
+            foodPos = foodPositions[i]
+            distanceToTarget = self.distancer.getDistance(foodPos, myPos)
+            for cell in grid:
+                distance = self.distancer.getDistance(cell, foodPos)
+                if distance <= distanceToTarget:
+                    discountFactor = np.exp(-(max(distance - closestFoodDist, 0)**0.5)/3)
+                    reward = foodRwdShape * discountFactor/ max(float(distance), .5)
+                    maxNoise = reward / 5.
+                    reward += random.uniform(-maxNoise, maxNoise)
+                    mdp.addReward(cell, reward)
+
             self.assignRewards(grid, mdp, rewardShape=foodRwdShape, myPos=myPos,
                 targetPos=foodPos)
 
 
-    # Rewards for ghosts in vicinity
-    enemyNearby = False
+    # Determinng if there is enemies nearby
+    ghostNearby = False
+    underThreat = False
+    timeToThreat = 100
     enemies = []
     for idx in self.getOpponents(gameState):
         enemyState = gameState.getAgentState(idx)
         enemyPos = enemyState.getPosition()
 
-        if enemyPos:
+        if enemyPos and not enemyState.isPacman:
             enemy_distance = self.distancer.getDistance(myPos, enemyPos)
             if enemy_distance <= 5:
-                enemyNearby = True
+                ghostNearby = True
                 enemies.append((enemyState, enemyPos))
 
-    if enemyNearby:
+                if enemyState.scaredTimer < 10:
+                    underThreat = True
+                    timeToThreat = min(timeToThreat, enemyState.scaredTimer)
+
+
+    if ghostNearby:
         # No rewards if enemy on our territory
         if enemyState.isPacman:
             pass
 
+        # Positive rewards for bringing food home
+        foodCarriyng = min(myState.numCarrying, 10)
+        rewardShape = goHomeReward * foodCarriyng / 10
+        self.assignGoHomeRewards(grid, mdp, rewardShape, myPos)
+
         # Negative reward for enemy's positions nearby
         enemyMinDistance = 5
-        enemyScaredTimer = min([item.scaredTimer for item, _ in enemies])
+        #enemyScaredTimer = min([item.scaredTimer for item, _ in enemies])
         for enemyState, enemyPos in enemies:
             if enemyState.scaredTimer > 2:
                 continue
+            if self.isHomeArena(enemyPos):
+                continue
             enemy_distance = self.distancer.getDistance(myPos, enemyPos)
-            reward = ghostAttackRwdShape * foodLeft * (vicinity - enemy_distance + 1.)
-            #print "Reward for enemy nearby, EnemyPos / distance / reward", enemyPos, enemy_distance, reward
+            reward = ghostAttackingRwdShape * (5. - enemy_distance + 1.)
             mdp.addRewardWithNeighbours(enemyPos, reward)
             enemyMinDistance = min(enemyMinDistance, enemy_distance)
 
 
         for cell in grid:
             # No rewards for cells in home arena
-            if self.isHomeArena(cell) or enemyScaredTimer > 9:
+            if self.isHomeArena(cell):
                 continue
 
             # Negative reward for going in trapping positions
-            cell_to_home_distance = self.getDistanceHome(cell)
-            #print "Distance home / cell distance home", distance_home, cell_to_home_distance
-            enemyDistCoef = float(6 - enemyMinDistance) / 2.
-            if cell_to_home_distance > distance_home:
-                reward = float(cell_to_home_distance - distance_home) * trapRwdShape * enemyDistCoef
-                mdp.addReward(cell, reward)
+            cellToHomeDistance = self.getDistanceHome(cell)
+            enemyDistCoef = (6 - enemyMinDistance) / 2.
+            foodCoefficient = max(foodCarriyng, 1) / 5.
+            dist = max(cellToHomeDistance - distance_home, 0)
+            reward = dist * enemyDistCoef * trapRwdShape * foodCoefficient
+            mdp.addReward(cell, reward)
+
+            #print "Distance home / cell distance home / enemyDistance / Discoeff", \
+            #    distance_home, cellToHomeDistance, enemyMinDistance, enemyDistCoef, reward
+            #if cellToHomeDistance > distance_home:
+            #    mdp.addReward(cell, reward)
 
             # Negative rewards for going in cells with 1 legal action
             legalActions = self._legalActions[cell]
             if legalActions == 1:
                 reward = float(trapRwdShape * enemyDistCoef * 2)
                 mdp.addRewardWithNeighbours(cell, reward)
-            if legalActions == 2 and enemyMinDistance <=3:
-                mdp.addRewardWithNeighbours(cell, trapRwdShape)
+            #if legalActions == 2 and enemyMinDistance <=5:
+            #    mdp.addRewardWithNeighbours(cell, trapRwdShape)
 
             # Positive reward for going towards Power pellets
-            for pelletPos in self.getCapsules(gameState):
-                self.assignRewards(grid, mdp, rewardShape=ppRwdShape,
-                    myPos=myPos, targetPos=pelletPos)
-
-        # Positive rewards for bringing food home
-        foodCarriyng = min(myState.numCarrying, 10)
-        rewardShape = goHomeReward * max(foodCarriyng - 1, 0) / 10
-        self.assignGoHomeRewards(grid, mdp, rewardShape, myPos)
+            if underThreat:
+                for pelletPos in self.getCapsules(gameState):
+                    self.assignRewards(grid, mdp, rewardShape=ppRwdShape,
+                        myPos=myPos, targetPos=pelletPos)
+            else:
+                for pelletPos in self.getCapsules(gameState):
+                    self.assignRewards(grid, mdp, rewardShape=-ppRwdShape/8,
+                        myPos=myPos, targetPos=pelletPos)
 
 
     # Rewards for going home when we carry enough food or game is close to an end
     timeLeft = gameState.data.timeleft // 4
-    goingHome = (foodLeft <= 2) or (timeLeft < 40)
+    goingHome = (foodLeft <= 2) or (timeLeft < 40) or (timeLeft < (self.getDistanceHome(myPos) + 5))
     if goingHome:
-        self.assignGoHomeRewards(grid, mdp, goHomeReward, myPos)
+        rewards = self.assignGoHomeRewards(grid, mdp, goHomeReward, myPos)
         #print "Food/time left", foodLeft, timeLeft
-        #for targetCell in self.homeBoundaryCells:
-        #    rewards = self.assignRewards(grid, mdp, rewardShape=goHomeReward, myPos=myPos, targetPos=targetCell)
-        #print 'MiddlePos/myPos/Rewards', targetCell, myPos, rewards
 
-    if myState.numCarrying > 5 and self.getDistanceHome(myPos) <= 3:
+    # Deposit food if we close to home
+    if (myState.numCarrying > 5) and self.getDistanceHome(myPos) <= 3:
         self.assignGoHomeRewards(grid, mdp, goHomeReward, myPos)
 
+    # Negative rewards for visited positions recently
+    visitsCounts = util.Counter()
+    for pos in self._positionsHistory[:-9]:
+        visitsCounts[pos] += 1
+    for cell in visitsCounts.keys():
+        visits = visitsCounts[cell]
+        if visits > 3:
+            reward = -0.8 * (visits - 1)
+            #mdp.addRewardWithNeighbours(cell, reward)
 
     # Rewards to be close to teammate pacman
-
     rewardShape = 250. / (250 + self.distancer.getDistance(myPos, self.start)) - 1
-    #print rewardShape
     self.assignRewards(grid, mdp, rewardShape=rewardShape, myPos=myPos, targetPos=teammatePos)
     mdp.addRewardWithNeighbours(teammatePos, rewardShape)
 
-    #reward = -1 / max(1, self.distancer.getDistance(myPos, teammatePos))
-    #mdp.addRewardWithNeighbours(teammatePos, reward)
 
-
-    evaluator = ValueIterationAgent(mdp, discount=0.8, iterations=100)
+    # Choosing next action
+    evaluator = ValueIterationAgent(mdp, discount=gamma, iterations=niterations)
     #if pacmanIsUnderTheThreat:
     #    evaluator.print_state()
 
@@ -478,7 +509,6 @@ class ReflexCaptureAgent(CaptureAgent):
         #print "myPos/myIndex/chosenAction/timeConsumed", myPos, self.index, bestAction, time.time() - start
         #evaluator.print_state()
         pass
-    #print 'eval time for agent %d: %.4f' % (self.index, time.time() - start)
 
     return bestAction
 
