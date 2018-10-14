@@ -400,7 +400,8 @@ class ReflexCaptureAgent(CaptureAgent):
                 foodNum = 6
                 indices = np.argsort(distances)[:foodNum]
                 distance_sum = distances[indices].sum() + mdp.grid.vicinity * indices.shape[0]
-                reward = foodNum * foodRwdShape / distance_sum
+
+                reward = foodNum * foodRwdShape / max(1., distance_sum)
                 mdp.addReward(cell, reward)
 
         return visibleFood, foodLeft
@@ -576,9 +577,10 @@ class ReflexCaptureAgent(CaptureAgent):
         # if pacmanIsUnderTheThreat:
         #    evaluator.print_state()
 
-        #if x > 32:
+
+        if x > 28:
         #if goingHome:
-        if ghostNearby:
+        #if ghostNearby:
             self.debugClear()
             for state in grid.getStates():
                 reward = mdp.getScaledStateReward(state)

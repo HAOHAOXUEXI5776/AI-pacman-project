@@ -342,7 +342,7 @@ class ReflexCaptureAgent(CaptureAgent):
     foodRwdShape = 0.1
 
     trapRwdShape = -0.1
-    ghostAttackingRwdShape = -1.5
+    ghostAttackingRwdShape = -3
     ppRwdShape = 1.
 
     myState = gameState.getAgentState(self.index)
@@ -470,7 +470,7 @@ class ReflexCaptureAgent(CaptureAgent):
 
     # Rewards for going home when we carry enough food or game is close to an end
     timeLeft = gameState.data.timeleft // 4
-    goingHome = (foodLeft <= 2) or (timeLeft < 40)
+    goingHome = (foodLeft <= 2) or (timeLeft < 40) or (timeLeft < (self.getDistanceHome(myPos) + 5))
     if goingHome:
         rewards = self.assignGoHomeRewards(grid, mdp, goHomeReward, myPos)
         #print "Food/time left", foodLeft, timeLeft

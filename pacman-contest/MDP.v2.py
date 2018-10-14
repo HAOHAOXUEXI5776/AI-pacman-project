@@ -434,10 +434,10 @@ class ReflexCaptureAgent(CaptureAgent):
                 self.assignRewards(grid, mdp, rewardShape=ppRwdShape,
                     myPos=myPos, targetPos=pelletPos)
 
-            # Positive rewards for bringing food home
-            foodCarriyng = min(myState.numCarrying, 10)
-            rewardShape = goHomeReward * max(foodCarriyng - 1, 0) / 10
-            self.assignGoHomeRewards(grid, mdp, rewardShape, myPos)
+        # Positive rewards for bringing food home
+        foodCarriyng = min(myState.numCarrying, 10)
+        rewardShape = goHomeReward * max(foodCarriyng - 1, 0) / 10
+        self.assignGoHomeRewards(grid, mdp, rewardShape, myPos)
 
 
     # Rewards for going home when we carry enough food or game is close to an end
@@ -449,6 +449,9 @@ class ReflexCaptureAgent(CaptureAgent):
         #for targetCell in self.homeBoundaryCells:
         #    rewards = self.assignRewards(grid, mdp, rewardShape=goHomeReward, myPos=myPos, targetPos=targetCell)
         #print 'MiddlePos/myPos/Rewards', targetCell, myPos, rewards
+
+    if myState.numCarrying > 5 and self.getDistanceHome(myPos) <= 3:
+        self.assignGoHomeRewards(grid, mdp, goHomeReward, myPos)
 
 
     # Rewards to be close to teammate pacman
