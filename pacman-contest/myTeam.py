@@ -37,10 +37,6 @@ from util import nearestPoint
 #### GLOBAL VARIABLES NEEDED FOR ASTAR ###
 
 GENERIC = False
-BELIEF_LOGIC = True
-beliefs = []
-beliefsInitialized = []
-USE_BELIEF_DISTANCE = True
 DEBUG = False
 validNextPositions = {}
 Walls = set()
@@ -472,7 +468,7 @@ class ReflexCaptureAgent(CaptureAgent):
             #    rewards = self.assignRewards(grid, mdp, rewardShape=goHomeReward, myPos=myPos, targetPos=targetCell)
             # print 'MiddlePos/myPos/Rewards', targetCell, myPos, rewards
 
-        if myState.numCarrying > 4 and self.getDistanceHome(myPos) < 11:
+        if myState.numCarrying > 4 and self.getDistanceHome(myPos) < 8:
             self.assignGoHomeRewards(grid, mdp, goHomeReward, myPos)
 
         # Rewards to be close to teammate pacman
@@ -609,12 +605,8 @@ class ReflexCaptureAgentAstar(CaptureAgent):
     def __init__(self, index):
         CaptureAgent.__init__(self, index)
         self.weights = util.Counter()
-        self.isTraining = False
-        self.episodesSoFar = 0
-        self.epsilon = 0.05
         self.discountFactor = 0.65
         self.ValidPos = {}
-        self.alphaLR = 0.0000000002
         self.PrevAction = None
         self.minPelletsToCashIn = 5
         self.maxPelletsToCashIn = 15
@@ -635,13 +627,13 @@ class ReflexCaptureAgentAstar(CaptureAgent):
         # Valid Moves contains all available moves from each available legal state in the map
         for x, y in noWallsTemp:
             availableMoves = []
-            if (x + 1, y) not in WallsTemp and 0 < x + 1 < 33 and 0 < y < 17:
+            if (x + 1, y) not in WallsTemp and 0 < x + 1 < gameState.data.layout.width - 1 and 0 < y < gameState.data.layout.height - 1:
                 availableMoves.append((x + 1, y))
-            if (x, y + 1) not in WallsTemp and 0 < x < 33 and 0 < y + 1 < 17:
+            if (x, y + 1) not in WallsTemp and 0 < x < gameState.data.layout.width - 1 and 0 < y + 1 < gameState.data.layout.height - 1:
                 availableMoves.append((x, y + 1))
-            if (x - 1, y) not in WallsTemp and 0 < x - 1 < 33 and 0 < y < 17:
+            if (x - 1, y) not in WallsTemp and 0 < x - 1 < gameState.data.layout.width - 1 and 0 < y < gameState.data.layout.height - 1:
                 availableMoves.append((x - 1, y))
-            if (x, y - 1) not in WallsTemp and 0 < x < 33 and 0 < y - 1 < 17:
+            if (x, y - 1) not in WallsTemp and 0 < x < gameState.data.layout.width - 1 and 0 < y - 1 < gameState.data.layout.height - 1:
                 availableMoves.append((x, y - 1))
             global validNextPositions
             key = str(x) + ',' + str(y)
@@ -787,210 +779,81 @@ class ReflexCaptureAgentAstar(CaptureAgent):
         """
         return {'successorScore': 1.0}
 
-    def getReward(self, gameState):
-        foodList = self.getFood(gameState).asList()
-
-        '''
-        This is reward function which returns the Cummilative reward in form of a rewward shaping.
-        '''
-        prev_gameState = self.observationHistory.pop()
-        # BRING BACK FOOD TO GET MORE REWARD
-        # food current pacman is carrying
-        prev_food_carrying = prev_gameState.getAgentState(self.index).numCarrying
-        food_carrying = gameState.getAgentState(self.index).numCarrying
-        prev_deposited = prev_gameState.getAgentState(self.index).numReturned
-        food_deposited = gameState.getAgentState(self.index).numReturned
-        food_brought_home = food_deposited - prev_deposited
-
-        net_change_food_carried = food_carrying - prev_food_carrying
-        # small reward for eating power capusule
-
-        # small reward for eating food
-        if net_change_food_carried > 0:
-            eat_reward = 0.2
-        else:
-            eat_reward = 0
-
-        # small reward for eating capusules
-        mypellets_prev = len(self.getCapsules(prev_gameState))
-        mypellets_now = len(self.getCapsules(gameState))
-        netChangePellets = mypellets_prev - mypellets_now
-        if netChangePellets > 0:
-            IAtePellete = 1
-        else:
-            IAtePellete = 0
-
-        # if brought food home give value +10
-        if food_brought_home > 0:
-            bring_food_value = 20 * food_brought_home
-        else:
-            bring_food_value = 0
-
-        # REWARD FOR EATING ENEMY PACMAN
-        myAgentPosition = prev_gameState.getAgentPosition(self.index)
-        eat_enemy_value = 0
-        enemy_ate_us_value = 0
-        for opponent in self.getOpponents(gameState):
-            maybePosition = prev_gameState.getAgentPosition(opponent)
-            mayBePositionNow = gameState.getAgentPosition(opponent)
-            WasIaPacman = prev_gameState.getAgentState(self.index).isPacman
-            AmIaPacman = gameState.getAgentState(self.index).isPacman
-            # Enemy is a pacman and he was 1 distance away from us in previous game state
-
-            if maybePosition != None:
-                IsEnemyPacman = prev_gameState.getAgentState(opponent).isPacman
-                howFarwasEnemy = self.getMazeDistance(myAgentPosition, maybePosition)
-                howFarisEnemy = self.getMazeDistance(myAgentPosition, mayBePositionNow)
-                if IsEnemyPacman:
-                    if howFarwasEnemy < 2:
-                        # Enemy has disappeared in the current state means we ate him
-                        if howFarisEnemy > 10:
-                            eat_enemy_value = 100
-                # If I was a pacman and I turned into a ghost and returned to begining
-                elif WasIaPacman == True and AmIaPacman == False:
-                    myAgentCurrenPos = gameState.getAgentPosition(self.index)
-                    if self.start == myAgentCurrenPos:
-                        enemy_ate_us_value = -100  # negative reward for being eaten
-
-        # NEGATIVE REWARDS
-        ourFoodNow = len(self.getFoodYouAreDefending(gameState).asList())
-        ourFoodPrev = len(self.getFoodYouAreDefending(prev_gameState).asList())
-        netOurFoodChange = ourFoodPrev - ourFoodNow
-
-        # small negative reward if enemy is eating our food
-
-        if netOurFoodChange > 0:
-            enemy_eating_value = -0.2
-        else:
-            enemy_eating_value = 0
-
-        # small negative reward for enemy eating power pelletes
-
-        pellets_prev = len(self.getCapsulesYouAreDefending(prev_gameState))
-        pellets_now = len(self.getCapsulesYouAreDefending(gameState))
-        netChangePellets = pellets_prev - pellets_now
-        if netChangePellets > 0:
-            enemyAtePellete = -1
-        else:
-            enemyAtePellete = 0
-
-        cummilativeReward = (eat_enemy_value + eat_reward + bring_food_value +
-                             enemy_eating_value + enemyAtePellete + enemy_ate_us_value + IAtePellete)
-
-        return cummilativeReward
-
-    def observationFunction(self, gameState):
-
-        '''
-         Note this observationFuntion ovverides the function in CaptureAgents
-
-        '''
-        if len(self.observationHistory) > 0 and self.isTraining:
-            self.update(self.observationHistory.pop(), self.lastAction, gameState, self.getReward(gameState))
-            # print self.getReward(gameState)
-
-        return gameState.makeObservation(self.index)
-
-    def update(self, state, action, nextState, reward):
-
-        '''
-
-        This update function updates the weights in the Training phase based on every transition:
-        Note: We initial the weights to some values we think are good and then learn them with a slow learning
-        rate
-        '''
-
-        TD = (reward + self.discountFactor * self.ValueFromQvalue(nextState))
-        Qvalue = self.AproaxQvalue(state, action)
-
-        updatedWeights = self.weights.copy()
-
-        FeatureValues = self.getFeatures(state, action)
-
-        for feature in FeatureValues:
-            newWeight = updatedWeights[feature] + self.alphaLR * (TD - Qvalue) * FeatureValues[feature]
-            updatedWeights[feature] = newWeight
-        self.weights = updatedWeights
-
-    def getSetOfMaximumValues(self, counterDictionary):
-        return [key for key in counterDictionary.keys() if counterDictionary[key] == max(counterDictionary.values())]
-
     #####################
     # ASTAR LOGIC BEGIN #
     #####################
 
     def isGhost(self, gameState, index):
         """
-        Returns true ONLY if we can see the agent and it's definitely a ghost
+        Return the location of the enemy ghost
         """
-        position = gameState.getAgentPosition(index)
-        if position is None:
+        pos = gameState.getAgentPosition(index)
+        if pos is None:
             return False
-        return not (gameState.isOnRedTeam(index) ^ (position[0] < gameState.getWalls().width / 2))
+        return not (gameState.isOnRedTeam(index) ^ (pos[0] < gameState.getWalls().width / 2))
 
     def isScared(self, gameState, index):
         """
-        Says whether or not the given agent is scared
+        check if an agent is in scared state or not
         """
         isScared = bool(gameState.data.agentStates[index].scaredTimer)
         return isScared
 
     def isPacman(self, gameState, index):
         """
-        Returns true ONLY if we can see the agent and it's definitely a pacman
+        If we can see the enemy and he is a pacman return true
         """
-        position = gameState.getAgentPosition(index)
-        if position is None:
+        pos = gameState.getAgentPosition(index)
+        if pos is None:
             return False
-        return not (gameState.isOnRedTeam(index) ^ (position[0] >= gameState.getWalls().width / 2))
+        return not (gameState.isOnRedTeam(index) ^ (pos[0] >= gameState.getWalls().width / 2))
 
     def aStarSearch(self, startPosition, gameState, goalPositions, avoidPositions=[], returnPosition=False):
         """
-        Finds the distance between the agent with the given index and its nearest goalPosition
+        This is Astar function which returns the path to the goal positons and avoiding the avoid positions
         """
         walls = gameState.getWalls()
-        width = walls.width
-        height = walls.height
-        # print width, height
+
         walls = walls.asList()
 
         actions = [Directions.NORTH, Directions.SOUTH, Directions.EAST, Directions.WEST]
-        actionVectors = [Actions.directionToVector(action) for action in actions]
-        # Change action vectors to integers so they work correctly with indexing
-        actionVectors = [tuple(int(number) for number in vector) for vector in actionVectors]
+        actionVec = [Actions.directionToVector(action) for action in actions]
+        actionVec = [tuple(int(number) for number in vector) for vector in actionVec]
 
-        # Values are stored a 3-tuples, (Position, Path, TotalCost)
+        # Each node of the graph is stored as a tuple (Position, path, total cost)_
 
-        currentPosition, currentPath, currentTotal = startPosition, [], 0
-        # Priority queue uses the maze distance between the entered point and its closest goal position to decide which comes first
-        queue = util.PriorityQueueWithFunction(lambda entry: entry[2] +  # Total cost so far
-                                                             (100) * self.getMazeDistance(startPosition, entry[0]) if
-        entry[0] in avoidPositions else 0 +  # Avoid enemy locations
-                                        sum([self.getMazeDistance(entry[0], endPosition) for endPosition in
+        currentPos, currentPath, currentCost = startPosition, [], 0
+
+
+        # we use the priority queue with the implemented huesristic : sum of distances to goals and 100 times distance to avoid positon
+
+        queue = util.PriorityQueueWithFunction(lambda x: x[2] +  # Total cost so far
+                                                             (100) * self.getMazeDistance(startPosition, x[0]) if
+        x[0] in avoidPositions else 0 +  # Avoid enemy locations
+                                        sum([self.getMazeDistance(x[0], Pos) for Pos in
                                              goalPositions]))
 
-        # Keeps track of visited positions
-        visited = set([currentPosition])
+        # we put all visited locations in an open list
+        visited = set([currentPos])
 
-        while currentPosition not in goalPositions:
+        while currentPos not in goalPositions:
 
-            possiblePositions = [((currentPosition[0] + vector[0], currentPosition[1] + vector[1]), action) for
-                                 vector, action in zip(actionVectors, actions)]
-            legalPositions = [(position, action) for position, action in possiblePositions if position not in walls]
+            possiblePos = [((currentPos[0] + vector[0], currentPos[1] + vector[1]), action) for
+                                 vector, action in zip(actionVec, actions)]
+            legalPositions = [(position, action) for position, action in possiblePos if position not in walls]
 
             for position, action in legalPositions:
                 if position not in visited:
                     visited.add(position)
-                    queue.push((position, currentPath + [action], currentTotal + 1))
+                    queue.push((position, currentPath + [action], currentCost + 1))
 
-            # This shouldn't ever happen...But just in case...
             if len(queue.heap) == 0:
                 return None
             else:
-                currentPosition, currentPath, currentTotal = queue.pop()
+                currentPos, currentPath, currentCost = queue.pop()
 
         if returnPosition:
-            return currentPath, currentPosition
+            return currentPath, currentPos
         else:
             return currentPath
 
@@ -1007,10 +870,8 @@ class ReflexCaptureAgentAstar(CaptureAgent):
 
 class DefensiveAstar(ReflexCaptureAgentAstar):
     """
-    A reflex agent that keeps its side Pacman-free. Again,
-    this is to give you an idea of what a defensive agent
-    could be like.  It is not the best or only way to make
-    such an agent.
+    Note this was Q-value evaluation part borrowed from Baseline purpose of this part was to avoid random actions
+    taken by Astar if the path returned is nulll
     """
 
     def getFeatures(self, gameState, action):
@@ -1048,18 +909,12 @@ class DefensiveAstar(ReflexCaptureAgentAstar):
 
     def computeActionFromQValues(self, state):
         """
-          Compute the best action to take in a state.  Note that if there
-          are no legal actions, which is the case at the terminal state,
-          you should return None.
+          compute the next best action based on the Q values of the baseline Agent
         """
         bestValue = -999999
         bestActions = None
         for action in state.getLegalActions(self.index):
-            # For each action, if that action is the best then
-            # update bestValue and update bestActions to be
-            # a list containing only that action.
-            # If the action is tied for best, then add it to
-            # the list of actions with the best value.
+            # for each action in the legal actions get the maximum Q value
             value = self.attackQvalue(state, action)
             if (DEBUG):
                 print
@@ -1099,6 +954,7 @@ class DefensiveAstar(ReflexCaptureAgentAstar):
                       not agent.isPacman and agent.getPosition() is not None and not agent.scaredTimer > 0]
             if successor.getAgentState(self.getOpponents(state)[0]).isPacman or successor.getAgentState(
                     self.getOpponents(state)[1]).isPacman:
+                global DEFENDING
                 foodMissing = list(set(DEFENDING).difference(foodDefend))
                 global latestFoodMissing
                 hasFooodBeenEatenLastime = (len(foodDefend) != len(self.getFoodYouAreDefending(prev_state).asList()))
