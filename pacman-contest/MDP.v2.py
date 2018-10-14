@@ -160,6 +160,10 @@ class PacmanMDP():
         print "Possible Actions", self._possibleActions
     '''
 
+    def getScaledStateReward(self, state):
+        rewards = [abs(self._rewards[key]) for key in self._rewards.keys()]
+        maxReward = max(rewards)
+        return self._rewards[state]/maxReward
 
     def getStates(self):
         """
@@ -464,6 +468,18 @@ class ReflexCaptureAgent(CaptureAgent):
     #reward = -1 / max(1, self.distancer.getDistance(myPos, teammatePos))
     #mdp.addRewardWithNeighbours(teammatePos, reward)
 
+
+    if x > 1:
+        # if goingHome:
+        # if ghostNearby:
+        self.debugClear()
+        for state in mdp.getStates():
+            reward = mdp.getScaledStateReward(state)
+            if reward > 0:
+                color = [0, max(1, reward), 0]
+            else:
+                color = [max(0, abs(reward)), 0, 0]
+            self.debugDraw([state], color)
 
     evaluator = ValueIterationAgent(mdp, discount=0.8, iterations=100)
     #if pacmanIsUnderTheThreat:

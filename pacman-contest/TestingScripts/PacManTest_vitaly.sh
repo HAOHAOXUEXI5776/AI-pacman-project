@@ -3,7 +3,7 @@
 PATHPACMAN='../'
 RED='MDP.v4'
 echo "DATA" > output.log
-for t in baselineTeam
+for t in leeroy
 do
 #  for var in alleyCapture bloxCapture crowdedCapture defaultCapture distantCapture fastCapture jumboCapture mediumCapture officeCapture strategicCapture testCapture tinyCapture
 #  do
