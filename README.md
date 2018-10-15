@@ -161,8 +161,8 @@ As the competition was run once daily, we found it necessary to test our model f
 * Improve strategy, based on agent’s performance.
 
 ![image](/uploads/5737c63d44c98c3cabf743442416b132/image.png)
-* Hybrid VERSION NUMBER - Combination of MDP and A-Star
-* MDP VERSION NUMBER - Minor tweaks over time on Value Iteration Hyperparameters
+* Hybrid_v - Combination of MDP and A-Star - Version number indicate changes to A-Star heuristic and MDP inclusions over time.
+* MDP_v - Minor tweaks over time on Value Iteration Hyperparameters
 
 ![image](/uploads/5b1d3e0adb307dd4077e9c91926019e5/image.png)
 
