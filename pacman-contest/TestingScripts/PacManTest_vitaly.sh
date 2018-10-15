@@ -1,9 +1,9 @@
 #@IgnoreInspection BashAddShebang
 # Specify path to the directory containing the capture.py and myTeam files
-PATHPACMAN='/Users/k/PycharmProjects/comp90054-pacman/pacman-contest'
-RED='MDP.v4'
-echo "DATA" > output.log
-for t in mcts
+PATHPACMAN='../'
+RED='MDP.v4.1'
+echo "DATA" > output2.log
+for t in leeroy MDP.v2 HybridV3 HybridV2 Hybrid
 do
 #  for var in alleyCapture bloxCapture crowdedCapture defaultCapture distantCapture fastCapture jumboCapture mediumCapture officeCapture strategicCapture testCapture tinyCapture
 #  do
@@ -23,13 +23,13 @@ do
       MAP='RANDOM'
       BLUE=$t
       echo $MAP$var
-      echo $MAP$var >> output.log
-      echo $RED >> output.log
-      echo $BLUE >> output.log
+      echo $MAP$var >> output2.log
+      echo $RED >> output2.log
+      echo $BLUE >> output2.log
       # Specify which teams should compete:
       # echo python2.7 $PATHPACMAN/capture.py -r $PATHPACMAN/$RED.py -b $PATHPACMAN/$BLUE.py -l $MAP$var
-      python2.7 $PATHPACMAN/capture.py -r $PATHPACMAN/$RED.py -b $PATHPACMAN/$BLUE.py -l $MAP$var -q --delay-step=0.001 | tee -a output.log
-      echo "= = = = = = = = = = = = = = = =" >> output.log
+      python2.7 $PATHPACMAN/capture.py -r $PATHPACMAN/$RED.py -b $PATHPACMAN/$BLUE.py -l $MAP$var -q --delay-step=0.001 | tee -a output2.log
+      echo "= = = = = = = = = = = = = = = =" >> output2.log
   done
 done
 ################################################################################################################################################################################

@@ -307,22 +307,6 @@ class ReflexCaptureAgent(CaptureAgent):
         if (x, y + 1) in valid_cells:
             self._legalActions[cell] += 1
 
-    '''
-    print "Home boundary cells: ", self.homeBoundaryCells
-
-
-    print "Walls:", self.walls
-    # Agent info
-    enemy_capsules = self.getCapsules(gameState)
-    print "Enemy's Capsules: ", enemy_capsules
-    print "Enemy's indices:", self.enemy_indices
-    print "Enemy's food:", self.getFood(gameState).asList()
-
-    print "Start Position", self.start
-    print "Our indices", team_indices
-    print "Our Capsules:", self.getCapsulesYouAreDefending(gameState)
-    print "Our Food:", self.getFoodYouAreDefending(gameState).asList()
-    '''
 
   def isHomeArena(self, cell):
       x, _ = cell
@@ -476,9 +460,9 @@ class ReflexCaptureAgent(CaptureAgent):
         for state in mdp.getStates():
             reward = mdp.getScaledStateReward(state)
             if reward > 0:
-                color = [0, max(1, reward), 0]
+                color = [0, reward, 0]
             else:
-                color = [max(0, abs(reward)), 0, 0]
+                color = [abs(reward), 0, 0]
             self.debugDraw([state], color)
 
     evaluator = ValueIterationAgent(mdp, discount=0.8, iterations=100)

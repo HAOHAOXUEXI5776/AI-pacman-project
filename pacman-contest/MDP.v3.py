@@ -162,6 +162,11 @@ class PacmanMDP():
     '''
 
 
+    def getScaledStateReward(self, state):
+        rewards = [abs(self._rewards[key]) for key in self._rewards.keys()]
+        maxReward = max(rewards)
+        return self._rewards[state]/maxReward
+
     def getStates(self):
         """
         Return a list of all states in the MDP.
@@ -494,6 +499,14 @@ class ReflexCaptureAgent(CaptureAgent):
     self.assignRewards(grid, mdp, rewardShape=rewardShape, myPos=myPos, targetPos=teammatePos)
     mdp.addRewardWithNeighbours(teammatePos, rewardShape)
 
+    self.debugClear()
+    for state in mdp.getStates():
+        reward = mdp.getScaledStateReward(state)
+        if reward > 0:
+            color = [0, reward, 0]
+        else:
+            color = [abs(reward), 0, 0]
+        self.debugDraw([state], color)
 
     # Choosing next action
     evaluator = ValueIterationAgent(mdp, discount=gamma, iterations=niterations)

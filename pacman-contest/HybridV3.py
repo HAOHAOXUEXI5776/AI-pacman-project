@@ -496,9 +496,9 @@ class ReflexCaptureAgent(CaptureAgent):
             for state in mdp.getStates():
                 reward = mdp.getScaledStateReward(state)
                 if reward > 0:
-                    color = [0, max(1, reward), 0]
+                    color = [0, reward, 0]
                 else:
-                    color = [max(0, abs(reward)), 0, 0]
+                    color = [abs(reward), 0, 0]
                 self.debugDraw([state], color)
 
         evaluator = ValueIterationAgent(mdp, discount=0.8, iterations=100)

@@ -308,8 +308,35 @@ class ReflexCaptureAgent(CaptureAgent):
             if (x, y + 1) in valid_cells:
                 self._legalActions[cell] += 1
 
-        # Position history
-        self._positionsHistory = []
+        # Enemy boundary
+        y = 1
+        x = self.homeXBoundary + 1
+        while ((x, y) not in self.walls):
+            y += 1
+        if self.isHomeArena((x, y)):
+            self.enemyXBoundary = x
+        else:
+            self.enemyXBoundary = self.homeXBoundary - 1
+        cells = [(self.enemyXBoundary, y) for y in range(1, self._maxy)]
+        self.enemyBoundaryCells = [item for item in cells if item not in self.walls]
+
+        # Enemy Start
+        if self.start[0] == 1:
+            self.enemyStart = (self._maxx - 1, self._maxy - 1)
+        else:
+            self.enemyStart = (1, 1)
+
+        distances = np.array([self.distancer.getDistance(cell, self.enemyStart) for cell in self.enemyBoundaryCells])
+        indices = np.argsort(distances)[:4]
+
+        self.invasionPoints = []
+        for idx in indices:
+            self.invasionPoints.append(self.enemyBoundaryCells[idx])
+
+        #print "invasion points", self.invasionPoints
+
+    def shape(self, x):
+        return np.exp(-np.sqrt(x) / 4)
 
     def getGrid(self, x_min, y_min, x_max, y_max):
         x_min = int(max(1, x_min))
@@ -325,11 +352,16 @@ class ReflexCaptureAgent(CaptureAgent):
 
     def getDistanceHome(self, pos):
         x, _ = pos
-        # print self.sign, x, self.homeBoundaryCells
         if (self.homeBoundaryCells[0][0] - x) * self.sign > 0:
             return 0
         distances = [self.distancer.getDistance(pos, cell) for cell in self.homeBoundaryCells]
         return min(distances)
+
+    def getInvasionDistance(self, pos):
+        if not self.isHomeArena(pos):
+            return 0
+        distances = [self.distancer.getDistance(pos, cell) for cell in self.homeBoundaryCells]
+        return min(distances) + 1
 
     def isHomeArena(self, cell):
         x, _ = cell
@@ -338,44 +370,34 @@ class ReflexCaptureAgent(CaptureAgent):
         return x1 <= x <= x2 or x2 <= x <= x1
 
 
-    def getChildrenStates(self, state):
+    def getChildrenStates(self, state, walls):
         childrenStates = []
         x, y = state
-        if (x - 1, y) not in self.walls:
+        if (x - 1, y) not in walls:
             childrenStates.append((x - 1, y))
-        if (x + 1, y) not in self.walls:
+        if (x + 1, y) not in walls:
             childrenStates.append((x + 1, y))
-        if (x, y - 1) not in self.walls:
+        if (x, y - 1) not in walls:
             childrenStates.append((x, y - 1))
-        if (x, y + 1) not in self.walls:
+        if (x, y + 1) not in walls:
             childrenStates.append((x, y + 1))
         return childrenStates
 
-    def expandToPacmanGrid(self, grid, currentPos, vicinity):
+    def expandToPacmanGrid(self, currentPos, vicinity, walls, grid=None):
+        if not grid:
+            grid = MDPGrid(currentPos, vicinity)
         startState = grid.getStartState()
         baseDistance = self.distancer.getDistance(currentPos, startState)
-        children = self.getChildrenStates(currentPos)
+        children = self.getChildrenStates(currentPos, walls)
         distances = [self.distancer.getDistance(state, grid.getStartState()) for state in children]
         for idx, distance in enumerate(distances):
             newState = children[idx]
             if distance > baseDistance and distance <= vicinity:
                 grid.addState(newState)
-                self.expandToPacmanGrid(grid, newState, vicinity)
+                self.expandToPacmanGrid(newState, vicinity, walls, grid)
             if distance == vicinity + 1:
                 grid.setBoundaryState(currentPos)
-
-    def assignRewards(self, grid, mdp, rewardShape, myPos, targetPos):
-        rewards = []
-        distanceToTarget = self.distancer.getDistance(targetPos, myPos)
-        for cell in grid.getStates():
-            distance = self.distancer.getDistance(cell, targetPos)
-            if distance <= distanceToTarget:
-                reward = rewardShape / max(float(distance), .5)
-                maxNoise = reward / 5.
-                reward += random.uniform(-maxNoise, maxNoise)
-                mdp.addReward(cell, reward)
-                rewards.append((myPos, cell, distance, reward))
-        return rewards
+        return grid
 
 
     def assignFoodRewards(self, gameState, myPos, mdp, foodRwdShape):
@@ -391,11 +413,15 @@ class ReflexCaptureAgent(CaptureAgent):
             # Assing rewards for food in current grid
             for foodPos in visibleFood:
                 distance = self.distancer.getDistance(myPos, foodPos)
-                reward = foodRwdShape / distance
+                reward = foodRwdShape * self.shape(distance)
                 mdp.addReward(foodPos, reward)
 
             # Assign rewards for food outside of visible grid
+            invadeDistance = self.getInvasionDistance(myPos)
             for cell in mdp.grid.getBoundaryStates():
+                if (self.getInvasionDistance(cell) > invadeDistance):
+                    continue
+
                 distances = np.array([self.distancer.getDistance(cell, foodPos) for foodPos in notVisibleFood])
                 foodNum = 6
                 indices = np.argsort(distances)[:foodNum]
@@ -416,8 +442,8 @@ class ReflexCaptureAgent(CaptureAgent):
                 for cell in mdp.grid.getBoundaryStates():
                     distance = self.distancer.getDistance(cell, pelletPos)
                     reward = rwdShape / distance
+                    #print "Pellet reward", reward
                     mdp.addReward(cell, reward)
-
 
 
 
@@ -429,6 +455,7 @@ class ReflexCaptureAgent(CaptureAgent):
             distance = self.getDistanceHome(cell)
             if distance > 0:
                 mdp.addReward(cell, rwdShape / (distance / 2.))
+
 
     def assignGhostRewards(self, mdp, ghostPos, reward):
         x, y = ghostPos
@@ -447,21 +474,22 @@ class ReflexCaptureAgent(CaptureAgent):
         """
         start = time.time()
         vicinity = 6
-        niterations = 20
+        niterations = 100
         gamma = 0.9
 
-        goHomeReward = 1.
-        foodRwdShape = 0.20
-        teammateRwdShape = -0.15
+        goHomeReward = 10.
+        foodRwdShape = 2.
+        boundaryRwdShape = .0
+        teammateRwdShape = -1.5
 
-        trapRwdShape = -0.3
-        ghostAttackingRwdShape = -4
-        ppRwdShape = 1.
+        trapRwdShape = -3.
+        ghostAttackingRwdShape = -20
+        ppRwdShape = 10.
 
+        self.debugClear()
 
         myState = gameState.getAgentState(self.index)
         myPos = myState.getPosition()
-        self._positionsHistory.append(myPos)
         distanceHome = self.getDistanceHome(myPos)
         x, y = myPos
 
@@ -470,16 +498,14 @@ class ReflexCaptureAgent(CaptureAgent):
         teammatePos = teammateState.getPosition()
 
         # Generate GRID
-        grid = MDPGrid(myPos, vicinity)
-        self.expandToPacmanGrid(grid, myPos, vicinity)
+        grid = self.expandToPacmanGrid(myPos, vicinity, self.walls)
         mdp = PacmanMDP(grid)
-
 
         # Assign positive rewards for food
         visibleFood, foodLeft = self.assignFoodRewards(gameState, myPos, mdp, foodRwdShape)
 
 
-        # Determinng if there is enemies nearby
+        # Determining if there is enemies nearby
         ghostNearby = False
         underThreat = False
         timeToThreat = 100
@@ -489,88 +515,92 @@ class ReflexCaptureAgent(CaptureAgent):
             enemyPos = enemyState.getPosition()
 
             if enemyPos and not enemyState.isPacman:
+                enemies.append((enemyState, enemyPos))
                 enemy_distance = self.distancer.getDistance(myPos, enemyPos)
                 if enemy_distance <= 5:
                     ghostNearby = True
-                    enemies.append((enemyState, enemyPos))
 
                     if enemyState.scaredTimer < 10:
                         underThreat = True
                         timeToThreat = min(timeToThreat, enemyState.scaredTimer)
 
+        # Rewards for agent being ghoat and enemy nearby home boundary
+        if self.isHomeArena(myPos):
+            for cell in self.homeBoundaryCells:
+                for enemyState, enemyPos in enemies:
+                    if self.distancer.getDistance(cell, enemyPos) <= 2:
+                        mdp.addReward(cell, boundaryRwdShape)
+
+                for invasionPos in self.invasionPoints:
+                    if self.distancer.getDistance(cell, invasionPos) <= 2:
+                        mdp.addReward(cell, boundaryRwdShape)
+
+
+
+        # Assigning rewards if for nearby ghosts
         if ghostNearby:
+
+            # Positive rewards for bringing food home
             if underThreat:
-                # Positive rewards for bringing food home
                 foodCarriyng = min(myState.numCarrying, 10)
                 rewardShape = goHomeReward * foodCarriyng / 20
                 self.assignGoHomeRewads(mdp, rewardShape)
 
+            # Assign positive rewards for Power Pellets
             if underThreat:
-                # Assign positive rewards for Power Pellets
                 self.assignPowerPelletRewards(gameState, mdp, ppRwdShape)
 
-                # Assign rewards for going into trap positions
+            # Assign rewards for going into trap positions
+            if underThreat:
                 for cell in mdp.getStates():
                     # Negative rewards for going in cells with 1 legal action
                     legalActions = self._legalActions[cell]
                     if legalActions == 1:
-                        #enemyDistCoef = (6 - enemyMinDistance) / 2.
-                        #reward = float(trapRwdShape)
                         mdp.addReward(cell, trapRwdShape)
 
-                    if cell in visibleFood:
-                        mdp.addReward(cell, -foodRwdShape)
+                    #if cell in visibleFood:
+                    #    mdp.addReward(cell, -foodRwdShape)
 
+
+            if underThreat:
+                # Negative rewards for enemy positions
                 for enemyState, enemyPos in enemies:
                     scaredCoefficient = 1./ max(1., enemyState.scaredTimer - 3.)
                     if enemyState.scaredTimer < 10:
                         reward = ghostAttackingRwdShape * scaredCoefficient
                         self.assignGhostRewards(mdp, enemyPos, reward)
 
-                        for cell in mdp.grid.getBoundaryStates():
-                            boundaryDistanceHome = self.getDistanceHome(cell)
-                            if boundaryDistanceHome >= mdp.grid.vicinity + distanceHome:
-                                mdp.addReward(cell, trapRwdShape)
 
-                    '''
-                    # Negative reward for going in trapping positions
-                    cellToHomeDistance = self.getDistanceHome(cell)
-                    
-                    foodCoefficient = max(foodCarriyng, 1) / 5.
-                    dist = max(cellToHomeDistance - distance_home, 0)
-                    reward = dist * enemyDistCoef * trapRwdShape * foodCoefficient
-                    mdp.addReward(cell, reward)
-                    '''
+                for cell in mdp.grid.getBoundaryStates():
+                    boundaryDistanceHome = self.getDistanceHome(cell)
+                    walls = self.walls.union(mdp.getStates())
+                    depth = 5
+                    expandedArea = self.expandToPacmanGrid(cell, depth, walls)
+                    invisibleCells = expandedArea.getStates()
+                    #self.debugDraw([cell], )
+                    self.debugDraw(invisibleCells, [0.5, 0, 0.5])
+                    if len(invisibleCells) < depth * 2:
+                        mdp.addReward(cell, trapRwdShape)
+
+                    #if boundaryDistanceHome >= mdp.grid.vicinity + distanceHome:
+                    #    mdp.addReward(cell, trapRwdShape)
+
+
 
             if not underThreat:
                 # Assign negative rewards for Power Pellets
                 self.assignPowerPelletRewards(gameState, mdp, -ppRwdShape / 10.)
 
-            '''
-            # Negative reward for enemy's positions nearby
-            enemyMinDistance = 5
-            # enemyScaredTimer = min([item.scaredTimer for item, _ in enemies])
-            for enemyState, enemyPos in enemies:
-                if enemyState.scaredTimer > 2:
-                    continue
-                if self.isHomeArena(enemyPos):
-                    continue
-                enemy_distance = self.distancer.getDistance(myPos, enemyPos)
-                reward = ghostAttackingRwdShape * (5. - enemy_distance + 1.)
-                mdp.addRewardWithNeighbours(enemyPos, reward)
-                enemyMinDistance = min(enemyMinDistance, enemy_distance)
-            '''
-
-
-
-
+                if enemyState.scaredTimer >= 10:
+                    mdp.addReward(enemyPos, -ppRwdShape / 10.)
 
 
         # Rewards to be close to teammate pacman
         if (teammatePos[0] == self.homeXBoundary) or (not self.isHomeArena(teammatePos)):
             mdp.addReward(teammatePos, teammateRwdShape)
 
-        # Rewards for going home when we carry enough food or game is close to an end
+
+        # Rewards for going home when we carry enough food or game is close to the end
         timeLeft = gameState.data.timeleft // 4
         goingHome = (foodLeft <= 2) or (timeLeft < (self.getDistanceHome(myPos) + 5)) or (timeLeft < 40)
         if goingHome:
@@ -578,20 +608,18 @@ class ReflexCaptureAgent(CaptureAgent):
 
 
         evaluator = ValueIterationAgent(mdp, discount=gamma, iterations=niterations)
-        # if pacmanIsUnderTheThreat:
-        #    evaluator.print_state()
 
-
-        #if x > 28:
+        #if  14 < x < 18:
+        if x > 0:
         #if goingHome:
-        if ghostNearby:
-            self.debugClear()
+        #if ghostNearby:
+
             for state in grid.getStates():
                 reward = mdp.getScaledStateReward(state)
                 if reward > 0:
-                    color = [0, max(1, reward), 0]
+                    color = [0, reward, 0]
                 else:
-                    color = [max(0, abs(reward)), 0, 0]
+                    color = [abs(reward), 0, 0]
                 self.debugDraw([state], color)
 
         bestAction = evaluator.getAction(myPos)
