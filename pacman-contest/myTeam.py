@@ -1019,7 +1019,7 @@ class DefensiveAstar(ReflexCaptureAgentAstar):
 
         anyEnemy = [state.getAgentState(i).isPacman for i in enemyIndices]
 
-        nearestFood = self.nearestFoodLocation(state, latestFoodMissing)
+        nearestFood = self.nearestFoodLocation(state, state.getAgentPosition(self.index))
 
         # # we need to avoid ghost if we become pacman ##
         avoidGhost = [state.getAgentPosition(i) for i in enemyIndices if
